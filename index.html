@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D CFD 熱流体シミュレータ | 日立 SR-P20YE2 ノズル解析</title>
+  <meta name="description" content="有限体積法(FVM)構造格子による3D熱流体解析シミュレータ。4種ノズル形状比較、リアルタイムCFD計算。">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════
+     ローディングオーバーレイ
+══════════════════════════════════════════════════════════════ -->
+<div id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div id="loading-msg">3D CFD熱流体シミュレータを起動中...</div>
+  <div class="loading-sub">WebGPU / CPU 自動判定中</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     アプリシェル
+══════════════════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- ── ヘッダー ────────────────────────────────────────────── -->
+  <header>
+    <div class="header-logo">
+      <!-- CFD格子・流体アイコン -->
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="4" width="20" height="20" rx="3" stroke="#4FC3F7" stroke-width="1.2" stroke-opacity="0.6"/>
+        <line x1="4" y1="14" x2="24" y2="14" stroke="#4FC3F7" stroke-width="0.8" stroke-dasharray="2 2" stroke-opacity="0.4"/>
+        <line x1="14" y1="4" x2="14" y2="24" stroke="#4FC3F7" stroke-width="0.8" stroke-dasharray="2 2" stroke-opacity="0.4"/>
+        <path d="M7 19C10 17 12 11 14 11C16 11 18 17 21 15" stroke="#7C4DFF" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="14" cy="11" r="2.5" fill="#4FC3F7"/>
+      </svg>
+    </div>
+
+    <div class="header-title">
+      <h1>3D CFD 熱流体シミュレータ</h1>
+      <span class="subtitle">日立スポットエアコン SR-P20YE2 ノズル形状比較解析 ／ 2000×2000×2000 mm 計算領域</span>
+    </div>
+
+    <div class="header-actions">
+      <span class="status-badge stopped" id="status-badge">停止</span>
+      <span class="badge badge-gpu" id="gpu-badge">判定中...</span>
+
+      <button class="btn btn-info"      id="btn-theory">📖 基礎原理</button>
+      <button class="btn btn-primary"   id="btn-start">▶ 解析開始</button>
+      <button class="btn btn-secondary" id="btn-pause" disabled>⏸ 一時停止</button>
+      <button class="btn btn-danger"    id="btn-reset">↺ リセット</button>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════
+       左パネル: コントロール
+  ══════════════════════════════════════════════════════════ -->
+  <aside class="left-panel">
+
+    <!-- ── ノズル選択 ────────────────────────────────────────── -->
+    <div class="panel-section">
+      <div class="section-title">ノズル選択</div>
+
+      <div class="nozzle-grid">
+        <!-- 図1 -->
+        <div class="nozzle-card active" data-nozzle="1">
+          <div class="nozzle-svg-wrap" id="nozzle-svg-1"></div>
+          <div class="nozzle-card-label" style="color:var(--nozzle-1)">図1</div>
+          <div class="nozzle-card-sub">標準テーパー</div>
+        </div>
+        <!-- 図2 -->
+        <div class="nozzle-card" data-nozzle="2">
+          <div class="nozzle-svg-wrap" id="nozzle-svg-2"></div>
+          <div class="nozzle-card-label" style="color:var(--nozzle-2)">図2</div>
+          <div class="nozzle-card-sub">内部シリンダー</div>
+        </div>
+        <!-- 図3 -->
+        <div class="nozzle-card" data-nozzle="3">
+          <div class="nozzle-svg-wrap" id="nozzle-svg-3"></div>
+          <div class="nozzle-card-label" style="color:var(--nozzle-3)">図3</div>
+          <div class="nozzle-card-sub">広口テーパー</div>
+        </div>
+        <!-- 図4 -->
+        <div class="nozzle-card" data-nozzle="4">
+          <div class="nozzle-svg-wrap" id="nozzle-svg-4"></div>
+          <div class="nozzle-card-label" style="color:var(--nozzle-4)">図4</div>
+          <div class="nozzle-card-sub">細口テーパー</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ノズル仕様 ────────────────────────────────────────── -->
+    <div class="panel-section">
+      <div class="section-title">選択ノズル仕様</div>
+      <div id="nozzle-info">
+        <div class="info-row"><span>読み込み中...</span></div>
+      </div>
+    </div>
+
+    <!-- ── ノズル上面（入口）条件 ────────────────────────────── -->
+    <div class="panel-section">
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>ノズル上面（入口）条件</span>
+        <button id="btn-inlet-reset" class="btn" style="font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.1);color:var(--text-secondary);border:none;border-radius:4px;cursor:pointer;" title="初期値（9.6m/s, 23.5℃）に戻す">↺ 初期値</button>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label" style="min-width:62px;">入口流速</span>
+        <input type="range" id="inlet-vel-slider" min="1.0" max="25.0" step="0.1" value="9.6">
+        <span class="slider-val" id="inlet-vel-val" style="min-width:48px;">9.6 m/s</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label" style="min-width:62px;">入口温度</span>
+        <input type="range" id="inlet-temp-slider" min="10.0" max="40.0" step="0.5" value="23.5">
+        <span class="slider-val" id="inlet-temp-val" style="min-width:48px;">23.5 °C</span>
+      </div>
+    </div>
+
+    <!-- ── 表示モード ────────────────────────────────────────── -->
+    <div class="panel-section">
+      <div class="section-title">表示モード</div>
+      <div class="mode-buttons">
+        <button class="mode-btn"        data-mode="0">温度</button>
+        <button class="mode-btn active" data-mode="1">速度</button>
+        <button class="mode-btn"        data-mode="2">圧力</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">表示形式</div>
+      <div class="mode-buttons view-buttons">
+        <button class="view-btn" data-view="0">3Dメッシュ</button>
+        <button class="view-btn active" data-view="1">断面</button>
+        <button class="view-btn" data-view="2">コンター</button>
+      </div>
+      <div class="slice-controls visible" id="slice-controls">
+        <label>断面方向
+          <select id="slice-axis">
+            <option value="1" selected>YZ面 (X固定)</option>
+            <option value="2">XZ面 (Y固定)</option>
+          </select>
+        </label>
+        <label>位置 <output id="slice-position-value">1.00 m</output>
+          <input type="range" id="slice-position" min="0" max="2" step="0.01" value="1">
+        </label>
+        <button type="button" id="btn-nozzle-zoom"
+          style="margin-top:6px;width:100%;font-size:11px;padding:6px 8px;
+                 background:rgba(79,195,247,0.10);color:var(--text-secondary);
+                 border:1px solid rgba(79,195,247,0.35);border-radius:6px;
+                 cursor:pointer;transition:background .15s,color .15s;">
+          🔍 ノズル部を拡大
+        </button>
+      </div>
+    </div>
+
+    <!-- ── 計算設定 ───────────────────────────────────────────── -->
+    <div class="panel-section">
+      <div class="section-title">計算設定</div>
+      <div class="slider-row">
+        <span class="slider-label">サブステップ/frame</span>
+        <input type="range" id="substep-slider" min="1" max="15" value="5">
+        <span class="slider-val" id="substep-value">5</span>
+      </div>
+    </div>
+
+    <!-- ── 解析統計 ───────────────────────────────────────────── -->
+    <div class="panel-section">
+      <div class="section-title">解析統計</div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-label">ステップ</div>
+          <div class="stat-value accent" id="stat-step">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">経過時間</div>
+          <div class="stat-value" id="stat-time">0.00 s</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">最低温度</div>
+          <div class="stat-value accent" id="stat-tmin">23.5 °C</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">最高温度</div>
+          <div class="stat-value warning" id="stat-tmax">34.0 °C</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">最大速度</div>
+          <div class="stat-value" id="stat-vmax">0.0 m/s</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">FPS</div>
+          <div class="stat-value success" id="stat-fps">--</div>
+        </div>
+      </div>
+      <div class="slider-row" style="margin-top:8px;">
+        <span class="slider-label">格子セル数</span>
+        <span class="stat-value accent" id="stat-particles" style="font-size:11px;margin-left:auto;">--</span>
+      </div>
+      <div class="progress-wrap">
+        <div id="progress-bar"></div>
+      </div>
+    </div>
+
+    <!-- ── 解析条件 ───────────────────────────────────────────── -->
+    <div class="panel-section">
+      <div class="section-title">解析条件</div>
+      <table class="cond-table">
+        <tr><td>計算領域</td>     <td>2×2×2 m</td></tr>
+        <tr><td>壁面条件</td>     <td>No-slip</td></tr>
+        <tr><td>吹出し口径</td>   <td>Ø110 mm</td></tr>
+        <tr><td>吹出し風速</td>   <td id="cond-inlet-vel">9.6 m/s</td></tr>
+        <tr><td>吹出し温度</td>   <td id="cond-inlet-temp">23.5 °C</td></tr>
+        <tr><td>周囲温度</td>     <td>34.0 °C</td></tr>
+        <tr><td>排気口</td>       <td>床面全面 (P=0)</td></tr>
+        <tr><td>排気BC</td>       <td>大気圧ディリクレ・リサイクル</td></tr>
+        <tr><td>格子数</td>       <td>約262,144セル (64×64×64)</td></tr>
+        <tr><td>解析種別</td>     <td>非定常・時間発展積分</td></tr>
+        <tr><td>手法</td>        <td>有限体積法 (FVM) 構造格子</td></tr>
+      </table>
+    </div>
+
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════════
+       中央: 3D ビューポート
+  ══════════════════════════════════════════════════════════ -->
+  <main class="viewport">
+    <canvas id="sim-canvas"></canvas>
+
+    <!-- ビューポート情報オーバーレイ -->
+    <div class="viewport-overlay">
+      <div class="vp-tl">3D CFD 熱流体シミュレータ</div>
+      <div class="vp-tr" id="vp-mode-label">表示: 速度場 [m/s]</div>
+      <div class="vp-bl">ドラッグ: 回転 ／ CTRL+ドラッグ: 移動 ／ ホイール: ズーム</div>
+      <div class="vp-br">2000 × 2000 × 2000 mm</div>
+    </div>
+  </main>
+
+  <!-- ══════════════════════════════════════════════════════════
+       右パネル: カラーバー + 凡例
+  ══════════════════════════════════════════════════════════ -->
+  <aside class="right-panel">
+
+    <!-- カラーバー -->
+    <div class="panel-section colorbar-wrap">
+      <div class="section-title">カラースケール</div>
+      <div class="colorbar-title" id="colorbar-title">速度 [m/s]</div>
+      <div class="colorbar-inner">
+        <canvas id="colorbar-canvas" width="24" height="200"></canvas>
+        <div class="colorbar-labels">
+          <span id="colorbar-max">20+</span>
+          <span>10.0</span>
+          <span id="colorbar-min">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 温度スケール凡例 -->
+    <div class="panel-section">
+      <div class="section-title">流体温度凡例</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:10px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:10px;height:10px;border-radius:2px;background:#0000cc;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary)">低温 (吹出し冷気流 23.5°C)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:10px;height:10px;border-radius:2px;background:#00cc00;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary)">中間温度 (混合域)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:10px;height:10px;border-radius:2px;background:#cccc00;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary)">やや高温</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:10px;height:10px;border-radius:2px;background:#cc0000;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary)">高温 (室内周囲温 34.0°C)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ノズル断面図キー -->
+    <div class="panel-section">
+      <div class="section-title">ノズル断面図キー</div>
+      <div style="font-size:9px;color:var(--text-muted);line-height:1.8;">
+        <div>■ 外壁 (Ø118/Ø93 等)</div>
+        <div>┄ 内壁 (流路内径)</div>
+        <div>— 中心軸</div>
+        <div style="margin-top:6px;color:var(--text-secondary);">
+          全ノズル共通:<br>
+          総高さ 180mm<br>
+          (喉部 40mm + テーパー 140mm)
+        </div>
+      </div>
+    </div>
+
+    <!-- ソルバー概要説明 -->
+    <div class="panel-section">
+      <div class="section-title">FVMソルバー概要</div>
+      <div style="font-size:9px;color:var(--text-muted);line-height:1.7;">
+        <p style="margin-bottom:4px;color:var(--text-secondary);">
+          有限体積法 (Finite Volume Method)
+        </p>
+        <p>構造格子のコントロールボリュームフラックス収支に基づき質量・運動量・熱量を保存。Chorin射影法により非圧縮Navier-Stokes式を解法。</p>
+        <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">
+          <div>移流項: 風上差分 (Donor-Cell)</div>
+          <div>拡散項: 非均一2次中心差分</div>
+          <div>圧力連成: 射影法 (ヤコビ反復)</div>
+          <div>浮力項: Boussinesq近似</div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+</div><!-- /.app-shell -->
+
+<!-- ══════════════════════════════════════════════════════════════
+     基礎原理モーダルダイアログ
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="theory-modal">
+  <div class="modal-container">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span style="font-size:20px;">📖</span>
+        <h2>3D CFD熱流体ソルバの基礎原理・メッシュ構築・計算手順</h2>
+      </div>
+      <button class="modal-close-btn" id="modal-close" title="閉じる">×</button>
+    </div>
+
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-tab="mesh">📐 1. メッシュ構築</button>
+      <button class="modal-tab" data-tab="solver">🔬 2. ソルバの基礎原理</button>
+      <button class="modal-tab" data-tab="algorithm">⚡ 3. 計算手順 (射影法)</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- ── タブ1: メッシュ構築 ─────────────────────────────── -->
+      <div class="modal-pane active" id="pane-mesh">
+        <p style="margin-bottom:12px;color:var(--text-secondary);">
+          本シミュレータでは、ノズル吹出し口径（Ø85mm等）の噴流シア層や境界層を忠実に解像するため、<strong>非均一ストレッチ構造格子（tanh clustering）</strong>と<strong>埋め込みサブグリッド（Embedded Subgrid）</strong>を採用しています。
+        </p>
+
+        <div class="math-card">
+          <h4>📌 非均一ストレッチ格子の定式化 (Roberts 1971 型)</h4>
+          <p style="font-size:12px;color:var(--text-secondary);">
+            等間隔パラメータ $\xi \in [0, 1]$ に対し、双曲線正接関数 $\tanh$ を用いて特定領域へ格子点を集中配置します。
+          </p>
+          <div class="equation-box">
+            // 中心集中型 (x, y軸: ノズル軸心 cx=cy=1.0m 付近を密に配置)<br>
+            s(ξ) = 0.5 × [ tanh(β_xy × (2ξ - 1)) / tanh(β_xy) + 1 ]<br>
+            x_face(i) = s(i / NX) × L<br><br>
+            // 片側集中型 (z軸: 天井ノズル吹出し口 z=2.0m 付近および床面を密に配置)<br>
+            s_z(ξ) = 1.0 - tanh(β_zt × (1 - ξ)) / tanh(β_zt)
+          </div>
+          <p style="font-size:11.5px;color:var(--text-muted);margin-top:6px;">
+            これにより、一様格子（約31mm幅）に比べてノズル直下の局所最小格子幅は約 <strong>h_min ≈ 2.5mm</strong>（均一格子換算で約800×800×800相当）まで高解像度化され、ノズル開口部Ø85mmを直径あたり約34点で解像します。
+          </p>
+        </div>
+
+        <div class="math-card">
+          <h4>🧩 実寸ジオメトリ埋め込みサブグリッド (Embedded Subgrid Sampling)</h4>
+          <p style="font-size:12px;color:var(--text-secondary);">
+            ノズル高さ領域（z = 1.82m 〜 2.0m）のセルでは、実寸のテーパー内外径・中心シリンダー（図2）に対し、各セルを <code>NOZZLE_SUBSAMPLE³ (12×12×3 = 432点)</code> で細分サンプリングし、開口率 <code>inletFrac</code> を算出します。
+          </p>
+          <div class="diagram-grid">
+            <div class="diagram-box">
+              <h5>流路開口セル (INLET)</h5>
+              <p>ノズル内径の内側に位置するサンプル点。開口率 <code>inletFrac</code> に応じて吹出し速度を按分し、多孔質境界として実流量を保存。</p>
+            </div>
+            <div class="diagram-box">
+              <h5>ノズル固体壁 (WALL)</h5>
+              <p>ノズルテーパー胴体壁（内外径の間）および図2の中心シリンダー。速度ゼロのNo-slip壁面境界条件を適用。</p>
+            </div>
+            <div class="diagram-box">
+              <h5>ノズル外気 (FLUID)</h5>
+              <p>ノズル胴体の外側の空間。通常の室内空気として扱い、天井面（z=2.0m）のみ固体壁境界を適用。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── タブ2: ソルバの基礎原理 ───────────────────────── -->
+      <div class="modal-pane" id="pane-solver">
+        <p style="margin-bottom:12px;color:var(--text-secondary);">
+          本ソルバは、非圧縮性粘性流体の支配方程式（Navier-Stokes方程式、連続の式、エネルギー方程式）を<strong>有限体積法（Finite Volume Method）</strong>により離散化しています。
+        </p>
+
+        <div class="math-card">
+          <h4>🌊 支配方程式 (Governing Equations)</h4>
+          <div class="equation-box">
+            // 連続の式 (非圧縮条件)<br>
+            ∇ · u = 0<br><br>
+            // ナビエ・ストークス方程式 (運動量保存則 + Boussinesq浮力)<br>
+            ∂u/∂t + (u · ∇)u = - (1/ρ₀) ∇p + ν ∇²u + g + β (T - T_ref) g<br><br>
+            // エネルギー方程式 (熱輸送方程式)<br>
+            ∂T/∂t + (u · ∇)T = α ∇²T
+          </div>
+        </div>
+
+        <div class="diagram-grid">
+          <div class="diagram-box">
+            <h5>有限体積法 (FVM) フラックス収支</h5>
+            <p>各直交セルをコントロールボリューム（検査体積）とし、隣接面を通過する質量・運動量・熱量の流出入（フラックス）を厳密に保存します。</p>
+          </div>
+          <div class="diagram-box">
+            <h5>移流項: 風上差分 (Donor-Cell)</h5>
+            <p>流速の正負に応じ、流速が流れてくる上流側の物理量を参照することで、高レイノルズ数域でも数値振動（ギブズ現象）を防ぎ安定性を確保します。</p>
+          </div>
+          <div class="diagram-box">
+            <h5>拡散項: 非均一2次精度ラプラシアン</h5>
+            <p>セル間隔が異なる非均一格子に対応するため、局所格子幅（hE, hW, hN, hS, hU, hD）に基づく非対称中心差分で2次精度を維持します。</p>
+          </div>
+          <div class="diagram-box">
+            <h5>Boussinesq浮力近似</h5>
+            <p>冷気噴流（23.5°C）と室内空気（34.0°C）の温度差による密度変化を、運動量式の浮力項 β(T - T_ref)g として取り込み、冷気の下降沈降流を再現。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── タブ3: 計算手順 (射影法) ───────────────────────── -->
+      <div class="modal-pane" id="pane-algorithm">
+        <p style="margin-bottom:14px;color:var(--text-secondary);">
+          非圧縮性流体では圧力項と速度場がカップルするため、<strong>Chorinの射影法（Fractional Step Method / Projection Method）</strong>を用いて1時間ステップごとに分離解法を実行します。
+        </p>
+
+        <div class="step-item">
+          <div class="step-num">Step 1</div>
+          <div class="step-content">
+            <h5>仮速度 u* の計算 (予測ステップ)</h5>
+            <p>圧力勾配項を除いた運動量方程式を陽的に時間発展させ、移流・粘性拡散・重力・Boussinesq浮力を反映した仮速度 u* を求めます。</p>
+            <div class="equation-box">u* = uⁿ + Δt [ - (uⁿ · ∇)uⁿ + ν ∇²uⁿ + g + β(Tⁿ - T_ref)g ]</div>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-num">Step 2</div>
+          <div class="step-content">
+            <h5>仮速度の発散計算 ∇ · u*</h5>
+            <p>仮速度 u* は非圧縮条件（発散ゼロ）を満たさないため、セル中心において局所発散を算出します。これが圧力ポアソン方程式のソース項となります。</p>
+            <div class="equation-box">RHS = (ρ₀ / Δt) ∇ · u*</div>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-num">Step 3</div>
+          <div class="step-content">
+            <h5>圧力ポアソン方程式の求解 (ヤコビ反復)</h5>
+            <p>非均一格子の係数行列に基づき、楕円型ポアソン方程式 ∇²p = RHS をヤコビ反復解法（32反復/ステップ）で高精度に解きます。</p>
+            <div class="equation-box">∇²p = (ρ₀ / Δt) ∇ · u*</div>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-num">Step 4</div>
+          <div class="step-content">
+            <h5>速度場の補正 (射影ステップ) &amp; 温度更新</h5>
+            <p>得られた圧力場の勾配 ∇p を仮速度 u* から差し引くことで、完全に発散ゼロ（非圧縮条件）を満たす次ステップの速度場 uⁿ⁺¹ へ射影補正します。同時に温度場も更新します。</p>
+            <div class="equation-box">
+              uⁿ⁺¹ = u* - (Δt / ρ₀) ∇p  (このとき ∇ · uⁿ⁺¹ = 0)<br>
+              Tⁿ⁺¹ = Tⁿ + Δt [ - (uⁿ · ∇)Tⁿ + α ∇²Tⁿ ]
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     外部ライブラリ
+══════════════════════════════════════════════════════════════ -->
+<!-- Three.js (CPUフォールバック用) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- OrbitControls -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     アプリケーションスクリプト (依存順)
+══════════════════════════════════════════════════════════════ -->
+<script src="js/nozzle.js"></script>
+<script src="js/shaders.js"></script>
+<script src="js/webgpu_mps.js"></script>
+<script src="js/cpu_fallback.js"></script>
+<script src="js/sim_mode.js"></script>
+<script src="js/main.js"></script>
+
+<!-- 表示モード切替時のラベル更新 (inline) -->
+<script>
+  // ── Canvas 事前サイズ設定 (WebGPU init前に必要) ──────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    const cv = document.getElementById('sim-canvas');
+    const vp = cv.parentElement;
+    const rect = vp.getBoundingClientRect();
+    cv.width  = Math.max(rect.width  || vp.clientWidth  || 800, 100);
+    cv.height = Math.max(rect.height || vp.clientHeight || 600, 100);
+    console.log('[CFD] canvas size set:', cv.width, 'x', cv.height);
+  });
+
+  // ── グローバルエラーハンドラー ────────────────────────────────────
+  window.addEventListener('unhandledrejection', e => {
+    console.error('[CFD] Unhandled Promise rejection:', e.reason);
+  });
+  window.addEventListener('error', e => {
+    console.error('[CFD] Error:', e.message, e.filename, e.lineno);
+  });
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = parseInt(btn.dataset.mode);
+      const labels = ['表示: 温度分布 [°C]', '表示: 速度場 [m/s]', '表示: 圧力場 [Pa]'];
+      const vpLabel = document.getElementById('vp-mode-label');
+      if (vpLabel) vpLabel.textContent = labels[mode] || '';
+
+      const cbarTitle  = document.getElementById('colorbar-title');
+      const cbarMin    = document.getElementById('colorbar-min');
+      const cbarMax    = document.getElementById('colorbar-max');
+      if (mode === 0) {
+        if(cbarTitle) cbarTitle.textContent = '温度 [°C]';
+        if(cbarMin)   cbarMin.textContent   = '23.5';
+        if(cbarMax)   cbarMax.textContent   = '34.0';
+      } else if (mode === 1) {
+        if(cbarTitle) cbarTitle.textContent = '速度 [m/s]';
+        if(cbarMin)   cbarMin.textContent   = '0';
+        if(cbarMax)   cbarMax.textContent   = '20+';
+      } else {
+        if(cbarTitle) cbarTitle.textContent = '圧力 [Pa]';
+        if(cbarMin)   cbarMin.textContent   = '0';
+        if(cbarMax)   cbarMax.textContent   = 'High';
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
