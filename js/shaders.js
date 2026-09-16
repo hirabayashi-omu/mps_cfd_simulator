@@ -1329,7 +1329,8 @@ fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
   let dudx=(uE.x-uW.x)/(hxE+hxW);
   let dvdy=(uN.y-uS.y)/(hyN+hyS);
   let dwdz=(uU.z-uD.z)/(hzU+hzD);
-  div[c]=clamp((dudx+dvdy+dwdz)*p.RHO0/p.DT, -40000.0f, 40000.0f);
+  let rawDiv = select(dudx + dvdy + dwdz, 0.0f, c >= roomN);
+  div[c]=clamp(rawDiv*p.RHO0/p.DT, -40000.0f, 40000.0f);
 }
 `;
 
@@ -1375,7 +1376,16 @@ fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
   let sD=s[neighborIndex(c,5u)]; let pD=select(pin[neighborIndex(c,5u)], pC, sD.pos.w>0.5f&&sD.pos.w<1.5f);
 
   let newP = (aE*pE+aW*pW+aN*pN+aS*pS+aU*pU+aD*pD-div[c])/aC;
-  pout[c]=clamp(newP, -800.0f, 800.0f);
+  var finalP = newP;
+  if(c >= roomN){
+    let vMag = length(a.vel.xyz);
+    let vIn = abs(p.V_IN);
+    let pBern = p.P_INLET - 0.5f * p.RHO0 * (vMag * vMag - vIn * vIn);
+    let zRel = clamp((a.pos.z - p.DOM) / 0.18f, 0.0f, 1.0f);
+    let pPhys = clamp(mix(0.0f, pBern, zRel * 0.7f + 0.3f), 0.0f, p.P_INLET);
+    finalP = mix(newP, pPhys, 0.70f);
+  }
+  pout[c]=clamp(finalP, -800.0f, 800.0f);
 }
 `;
 
@@ -1510,7 +1520,7 @@ fn findAxisIndex(val:f32, offset:u32, n:u32) -> u32 {
     if(best>0.005f*0.005f*2.0f||nc.pos.w>0.5f){values[id]=-1.0f;return;}
     var nv=nc.aux.x;
     if(p.DISP_MODE==1u){nv=nc.aux.z;}else if(p.DISP_MODE==2u){nv=abs(nc.vel.w);}
-    if(p.DISP_MODE==0u){nv=(nv-p.T_MIN)/(p.T_MAX-p.T_MIN);}else if(p.DISP_MODE==1u){nv/=p.V_MAX;}else{nv/=500.0f;}
+    if(p.DISP_MODE==0u){nv=(nv-p.T_MIN)/(p.T_MAX-p.T_MIN);}else if(p.DISP_MODE==1u){nv/=p.V_MAX;}else{let pScale=max(40.0f, p.P_INLET * 1.2f); nv/=pScale;}
     values[id]=clamp(nv,0.0f,1.0f);
     return;
   }
@@ -1553,7 +1563,7 @@ fn findAxisIndex(val:f32, offset:u32, n:u32) -> u32 {
     let blend=clamp((z-(p.DOM-0.1f))/0.1f,0.0f,1.0f);
     if(radial<=p.IN_R){v=mix(v,p.V_IN,blend);}
   }
-  if(p.DISP_MODE==0u){v=(v-p.T_MIN)/(p.T_MAX-p.T_MIN);}else if(p.DISP_MODE==1u){v/=p.V_MAX;}else{let pScale=max(max(0.5f*p.RHO0*p.V_MAX*p.V_MAX,40.0f),p.P_INLET*1.2f);v/=pScale;}
+  if(p.DISP_MODE==0u){v=(v-p.T_MIN)/(p.T_MAX-p.T_MIN);}else if(p.DISP_MODE==1u){v/=p.V_MAX;}else{let pScale=max(40.0f, p.P_INLET * 1.2f); v/=pScale;}
   values[id]=clamp(v,0.0f,1.0f);
 }
 `;
@@ -1643,7 +1653,7 @@ struct SliceCellOut {
   if(p.DISP_MODE==0u){ t=(v-p.T_MIN)/max(p.T_MAX-p.T_MIN,1e-5f); }
   else if(p.DISP_MODE==1u){ t=v/max(p.V_MAX,1e-5f); }
   else {
-    let pScale = max(max(0.5f * p.RHO0 * p.V_MAX * p.V_MAX, 40.0f), p.P_INLET * 1.2f);
+    let pScale = max(40.0f, p.P_INLET * 1.2f);
     t = v / pScale;
   }
 
@@ -1735,7 +1745,7 @@ struct Out { @builtin(position) pos:vec4f, @location(0) color:vec3f, @location(1
   if(p.DISP_MODE==0u){ t=(v-p.T_MIN)/max(p.T_MAX-p.T_MIN,1e-5f); }
   else if(p.DISP_MODE==1u){ t=v/max(p.V_MAX,1e-5f); }
   else {
-    let pScale = max(max(0.5f * p.RHO0 * p.V_MAX * p.V_MAX, 40.0f), p.P_INLET * 1.2f);
+    let pScale = max(40.0f, p.P_INLET * 1.2f);
     t = v / pScale;
   }
 

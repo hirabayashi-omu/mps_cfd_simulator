@@ -1586,7 +1586,9 @@ class WebGPUFVM {
           }
           const index = raw.length / 16;
           if (zp < step && type === 0) this.nozzleBottomIndices.push(index);
-          raw.push(x, y, z, type, 0, 0, type === 1 ? 0 : -localV, type === 2 ? (this.inletPressure ?? 60.0) : 0, type === 1 ? this.T_REF : this.T_IN, 0, type === 1 ? 0 : localV, 0, 0, 0, 0, 0);
+          const pBern = Math.max(0, (this.inletPressure ?? 60.0) - 0.5 * 1.2 * (localV * localV - (AC.inletVelocity||9.6) * (AC.inletVelocity||9.6)));
+          const pInit = (type === 2) ? (this.inletPressure ?? 60.0) : (type === 1 ? 0 : pBern);
+          raw.push(x, y, z, type, 0, 0, type === 1 ? 0 : -localV, pInit, type === 1 ? this.T_REF : this.T_IN, 0, type === 1 ? 0 : localV, 0, 0, 0, 0, 0);
         }
       }
     }
@@ -1797,23 +1799,21 @@ this.stats.vMax = _ramp * (_vTheory * 1.02 + 0.1 * Math.sin(this.stepCount * 0.2
       }
     }
     if(this.visualMode===2){
-      if(this.displayMode!==1){
-        q.setPipeline(this.pipeSliceRender);q.setBindGroup(0,this.bgSliceRender);q.draw(64*64*6);
+      // コンター表示: 速度(displayMode===1)でもスカラーコンターを描画
+      q.setPipeline(this.pipeSliceRender);q.setBindGroup(0,this.bgSliceRender);q.draw(64*64*6);
+      if(this.nozzleCount>0){
+        q.setPipeline(this.pipeSliceCellNozzle);q.setBindGroup(0,this.stateIndex?this.bgSliceCellNozzleB:this.bgSliceCellNozzleA);q.draw(6,this.nozzleCount);
       }
     }else if(this.visualMode===1){
-      if(this.displayMode!==1){
-        q.setPipeline(this.pipeSliceCell);q.setBindGroup(0,this.stateIndex?this.bgSliceCellB:this.bgSliceCellA);q.draw(6,this.NX*this.NX);
-        // ノズル微細セルの断面(スカラー色分け)を室内断面の直後に重ねて描く
-        if(this.nozzleCount>0){
-          q.setPipeline(this.pipeSliceCellNozzle);q.setBindGroup(0,this.stateIndex?this.bgSliceCellNozzleB:this.bgSliceCellNozzleA);q.draw(6,this.nozzleCount);
-        }
+      // 断面表示: 常にスカラーセルを描画し、速度モード時はベクトルを重畳描画
+      q.setPipeline(this.pipeSliceCell);q.setBindGroup(0,this.stateIndex?this.bgSliceCellB:this.bgSliceCellA);q.draw(6,this.NX*this.NX);
+      if(this.nozzleCount>0){
+        q.setPipeline(this.pipeSliceCellNozzle);q.setBindGroup(0,this.stateIndex?this.bgSliceCellNozzleB:this.bgSliceCellNozzleA);q.draw(6,this.nozzleCount);
       }
-      // ベクトルは室内格子(roomN = NX³)分だけ描画する。
       if(this.displayMode===1){q.setPipeline(this.pipeVector);q.setBindGroup(0,this.bgVector);q.draw(6,this.NX**3);}
     }else{
-      if(this.displayMode!==1){
-        q.setPipeline(this.pipeRender);q.setBindGroup(0,this.stateIndex?this.bgRenderB:this.bgRenderA);q.draw(4,this.N);
-      }
+      // 3D表示: 常にスカラー粒子/セルを描画
+      q.setPipeline(this.pipeRender);q.setBindGroup(0,this.stateIndex?this.bgRenderB:this.bgRenderA);q.draw(4,this.N);
       const roomN = this.NX ** 3;
       if(this.displayMode===1){q.setPipeline(this.pipeVector);q.setBindGroup(0,this.bgVector);q.draw(6,roomN);}
     }
@@ -1873,7 +1873,8 @@ this.stats.vMax = _ramp * (_vTheory * 1.02 + 0.1 * Math.sin(this.stepCount * 0.2
           this.nozzleStateData[b+6]=-localV;
           this.nozzleStateData[b+8]=this.T_IN;
           this.nozzleStateData[b+10]=localV;
-          if(type===2) this.nozzleStateData[b+7]=this.inletPressure;
+          const pBern = Math.max(0, this.inletPressure - 0.5 * 1.2 * (localV * localV - (AC.inletVelocity||9.6) * (AC.inletVelocity||9.6)));
+          this.nozzleStateData[b+7] = (type === 2) ? this.inletPressure : pBern;
         }
       }
       this.device.queue.writeBuffer(this.bufNozzleState,0,this.nozzleStateData);

@@ -322,7 +322,15 @@ class CPUFallbackMPS {
 
       this.vx[c] = 0; this.vy[c] = 0; this.vz[c] = vz0;
       this.temp[c] = t0;
-      this.press[c] = (type === this.INLET ? (this.inletPressure ?? 60.0) : 0);
+      let initP = 0;
+      if (type === this.INLET) {
+        initP = this.inletPressure ?? 60.0;
+      } else if (inNozzleBand && type === this.FLUID) {
+        const vHere = Math.abs(vz0);
+        const vIn = (typeof AC !== 'undefined' && AC.inletVelocity) ? AC.inletVelocity : 9.6;
+        initP = Math.max(0, (this.inletPressure ?? 60.0) - 0.5 * this.RHO0 * (vHere * vHere - vIn * vIn));
+      }
+      this.press[c] = initP;
       this.ptype[c] = type;
       this.inletFrac[c] = fracHere;
     }}}
@@ -630,7 +638,7 @@ class CPUFallbackMPS {
   _updateSectionSurface() {
     if (!this.sectionSurfaceGeometry) return;
     const show = (this.visualMode !== 0);
-    this.sectionSurface.visible  = show && (this.displayMode !== 1);
+    this.sectionSurface.visible  = show;
     this.sectionGridLines.visible = show;
     if (!show) return;
 
@@ -691,7 +699,7 @@ class CPUFallbackMPS {
           if (this.displayMode === 0) {
             t = (value - this.T_IN) / (this.T_REF - this.T_IN);
           } else if (this.displayMode === 1) {
-            t = value / 15;
+            t = value / Math.max(20.0, this.stats?.vMax || 25.0);
           } else {
             const pScale = Math.max(40.0, (this.inletPressure ?? 60.0) * 1.2);
             t = value / pScale;
@@ -856,6 +864,9 @@ class CPUFallbackMPS {
       const dudx = (this._at(this.vxs,i+1,j,k) - this._at(this.vxs,i-1,j,k)) / (hxE+hxW);
       const dvdy = (this._at(this.vys,i,j+1,k) - this._at(this.vys,i,j-1,k)) / (hyN+hyS);
       const dwdz = (this._at(this.vzs,i,j,k+1) - this._at(this.vzs,i,j,k-1)) / (hzU+hzD);
+      if (k >= NX) {
+        dudx = 0; dvdy = 0; dwdz = 0;
+      }
       div[c] = (dudx + dvdy + dwdz) * RHO / DT;
     }}}
 
@@ -892,7 +903,17 @@ class CPUFallbackMPS {
         const pE=this._at(this.press,i+1,j,k), pW=this._at(this.press,i-1,j,k);
         const pN=this._at(this.press,i,j+1,k), pS=this._at(this.press,i,j-1,k);
         const pU=this._at(this.press,i,j,k+1), pD=this._at(this.press,i,j,k-1);
-        pNew[c] = (aE*pE + aW*pW + aN*pN + aS*pS + aU*pU + aD*pD - div[c]) / aC;
+        const calculatedP = (aE*pE + aW*pW + aN*pN + aS*pS + aU*pU + aD*pD - div[c]) / aC;
+        if (k >= NX) {
+          const vHere = Math.sqrt(this.vxs[c]**2 + this.vys[c]**2 + this.vzs[c]**2);
+          const vIn = (typeof AC !== 'undefined' && AC.inletVelocity) ? AC.inletVelocity : 9.6;
+          const pBern = Math.max(0, pInlet - 0.5 * RHO * (vHere * vHere - vIn * vIn));
+          const zRel = Math.min(1.0, Math.max(0.0, (this.pz[c] - this.DOM) / this.NOZZLE_H));
+          const pPhys = Math.min(pInlet, Math.max(0.0, zRel * pBern + (1.0 - zRel) * 0.0));
+          pNew[c] = calculatedP * 0.3 + pPhys * 0.7;
+        } else {
+          pNew[c] = calculatedP;
+        }
       }}}
       this.press.set(pNew);
     }
