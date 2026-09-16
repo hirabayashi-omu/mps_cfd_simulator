@@ -109,7 +109,42 @@ function updateGpuBadge() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+//  サイドバー折りたたみ & タブ切り替え
+// ─────────────────────────────────────────────────────────────────
+function setupSidebarUI() {
+  const elLeftPanel   = document.getElementById('left-panel');
+  const btnToggleSide = document.getElementById('btn-toggle-sidebar');
+  const btnCloseSide  = document.getElementById('btn-close-sidebar');
+  const btnOpenSide   = document.getElementById('btn-open-sidebar');
+
+  function toggleSidebar(forceState) {
+    if (!elLeftPanel) return;
+    const isCollapsed = (forceState !== undefined) ? forceState : !elLeftPanel.classList.contains('collapsed');
+    elLeftPanel.classList.toggle('collapsed', isCollapsed);
+    if (btnOpenSide) btnOpenSide.classList.toggle('visible', isCollapsed);
+  }
+
+  btnToggleSide?.addEventListener('click', () => toggleSidebar());
+  btnCloseSide?.addEventListener('click', () => toggleSidebar(true));
+  btnOpenSide?.addEventListener('click', () => toggleSidebar(false));
+
+  const tabBtns  = document.querySelectorAll('.sidebar-tabs .tab-btn');
+  const tabPanes = document.querySelectorAll('.sidebar-tab-content');
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.tab;
+      tabBtns.forEach(b => b.classList.toggle('active', b === btn));
+      tabPanes.forEach(pane => {
+        pane.classList.toggle('active', pane.id === targetId);
+      });
+    });
+  });
+}
+
 async function startApp() {
+  setupSidebarUI();
   showLoading('システムを初期化中...');
 
   // ノズルSVGプレビュー生成

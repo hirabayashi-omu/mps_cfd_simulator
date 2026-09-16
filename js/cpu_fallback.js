@@ -1277,7 +1277,13 @@ class CPUFallbackMPS {
 
   tick() {
     if (!this.paused) {
-      for (let s = 0; s < this.substepsPerFrame; s++) this.step();
+      const t0 = performance.now();
+      for (let s = 0; s < this.substepsPerFrame; s++) {
+        this.step();
+        // 1フレームあたり18msを超えたら即座に描画・UIスレッドへ処理を戻す
+        // これによりCPUモードでもUIのフリーズや引っ掛かりを完全に防止し爆速レスポンスを維持
+        if (performance.now() - t0 > 18) break;
+      }
     }
     this._updateVisuals();
     if (this.controls) this.controls.update();

@@ -7,6 +7,28 @@
   <meta name="description" content="有限体積法(FVM)構造格子による3D熱流体解析シミュレータ。4種ノズル形状比較、リアルタイムCFD計算。">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="css/style.css">
+<script>
+window.toggleSidebar = function(forceState) {
+  const panel = document.getElementById('left-panel');
+  const openBtn = document.getElementById('btn-open-sidebar');
+  if (!panel) return;
+  const isCollapsed = (forceState !== undefined) ? forceState : !panel.classList.contains('collapsed');
+  panel.classList.toggle('collapsed', isCollapsed);
+  if (openBtn) openBtn.classList.toggle('visible', isCollapsed);
+};
+
+window.switchSidebarTab = function(targetId) {
+  const tabBtns = document.querySelectorAll('.sidebar-tabs .tab-btn');
+  const tabPanes = document.querySelectorAll('.sidebar-tab-content');
+  tabBtns.forEach(btn => {
+    const isActive = btn.getAttribute('data-tab') === targetId;
+    btn.classList.toggle('active', isActive);
+  });
+  tabPanes.forEach(pane => {
+    pane.classList.toggle('active', pane.id === targetId);
+  });
+};
+</script>
 </head>
 <body>
 
@@ -26,7 +48,7 @@
 
   <!-- ── ヘッダー ────────────────────────────────────────────── -->
   <header>
-    <button id="btn-toggle-sidebar" class="btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);padding:5px 11px;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;" title="コントロールパネルの表示/非表示切替">
+    <button id="btn-toggle-sidebar" class="btn btn-toggle-side" onclick="window.toggleSidebar()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);padding:5px 11px;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;" title="コントロールパネルの表示/非表示切替">
       <span>☰ パネル切替</span>
     </button>
     <div class="header-logo">
@@ -60,181 +82,207 @@
   <!-- ══════════════════════════════════════════════════════════
        左パネル: コントロール
   ══════════════════════════════════════════════════════════ -->
-  <button id="btn-open-sidebar" class="floating-sidebar-tab" title="コントロールパネルを開く">
+  <button id="btn-open-sidebar" class="floating-sidebar-tab" onclick="window.toggleSidebar(false)" title="コントロールパネルを開く">
     <span>☰ コントロール</span>
   </button>
   <aside class="left-panel" id="left-panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:4px;">
-      <span style="font-weight:700;font-size:12px;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;">Controls</span>
-      <button id="btn-close-sidebar" class="btn" style="padding:2px 8px;font-size:11px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);" title="パネルを折りたたむ">◀ 閉じる</button>
+    <!-- 固定ヘッダー (スクロールしても常に最上部に固定) -->
+    <div class="sidebar-header-fixed">
+      <span class="sidebar-header-title">⚙️ コントロール</span>
+      <button id="btn-close-sidebar" class="sidebar-close-btn" onclick="window.toggleSidebar(true)" title="パネルを折りたたむ">◀ 閉じる</button>
     </div>
 
-    <!-- ── ノズル選択 ────────────────────────────────────────── -->
-    <div class="panel-section">
-      <div class="section-title">ノズル選択</div>
+    <!-- 固定タブバー (スクロールしても常に最上部に固定) -->
+    <div class="sidebar-tabs" id="sidebar-tabs">
+      <button class="tab-btn active" data-tab="tab-settings" onclick="window.switchSidebarTab('tab-settings')">⚙️ ノズル設定</button>
+      <button class="tab-btn" data-tab="tab-display" onclick="window.switchSidebarTab('tab-display')">👁️ 表示切替</button>
+      <button class="tab-btn" data-tab="tab-stats" onclick="window.switchSidebarTab('tab-stats')">📊 統計・条件</button>
+    </div>
 
-      <div class="nozzle-grid">
-        <!-- 図1 -->
-        <div class="nozzle-card active" data-nozzle="1">
-          <div class="nozzle-svg-wrap" id="nozzle-svg-1"></div>
-          <div class="nozzle-card-label" style="color:var(--nozzle-1)">図1</div>
-          <div class="nozzle-card-sub">標準テーパー</div>
+    <!-- スクロール可能領域 (タブの中身のみスクロール) -->
+    <div class="sidebar-scroll-area">
+      <!-- ══════════════════════════════════════════════════════════
+           タブ1: ノズル設定 (ノズル選択・仕様・流入条件・計算設定)
+      ══════════════════════════════════════════════════════════ -->
+      <div class="sidebar-tab-content active" id="tab-settings">
+        <!-- ── ノズル選択 ────────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title">ノズル選択</div>
+          <div class="nozzle-grid">
+            <!-- 図1 -->
+            <div class="nozzle-card active" data-nozzle="1">
+              <div class="nozzle-svg-wrap" id="nozzle-svg-1"></div>
+              <div class="nozzle-card-label" style="color:var(--nozzle-1)">図1</div>
+              <div class="nozzle-card-sub">標準テーパー</div>
+            </div>
+            <!-- 図2 -->
+            <div class="nozzle-card" data-nozzle="2">
+              <div class="nozzle-svg-wrap" id="nozzle-svg-2"></div>
+              <div class="nozzle-card-label" style="color:var(--nozzle-2)">図2</div>
+              <div class="nozzle-card-sub">内部シリンダー</div>
+            </div>
+            <!-- 図3 -->
+            <div class="nozzle-card" data-nozzle="3">
+              <div class="nozzle-svg-wrap" id="nozzle-svg-3"></div>
+              <div class="nozzle-card-label" style="color:var(--nozzle-3)">図3</div>
+              <div class="nozzle-card-sub">広口テーパー</div>
+            </div>
+            <!-- 図4 -->
+            <div class="nozzle-card" data-nozzle="4">
+              <div class="nozzle-svg-wrap" id="nozzle-svg-4"></div>
+              <div class="nozzle-card-label" style="color:var(--nozzle-4)">図4</div>
+              <div class="nozzle-card-sub">細口テーパー</div>
+            </div>
+          </div>
         </div>
-        <!-- 図2 -->
-        <div class="nozzle-card" data-nozzle="2">
-          <div class="nozzle-svg-wrap" id="nozzle-svg-2"></div>
-          <div class="nozzle-card-label" style="color:var(--nozzle-2)">図2</div>
-          <div class="nozzle-card-sub">内部シリンダー</div>
+
+        <!-- ── ノズル仕様 ────────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title">選択ノズル仕様</div>
+          <div id="nozzle-info">
+            <!-- JSで動的生成 -->
+          </div>
         </div>
-        <!-- 図3 -->
-        <div class="nozzle-card" data-nozzle="3">
-          <div class="nozzle-svg-wrap" id="nozzle-svg-3"></div>
-          <div class="nozzle-card-label" style="color:var(--nozzle-3)">図3</div>
-          <div class="nozzle-card-sub">広口テーパー</div>
+
+        <!-- ── ノズル上面（入口）条件 ────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>ノズル上面（入口）条件</span>
+            <button id="btn-inlet-reset" class="btn" style="font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:4px;cursor:pointer;" title="初期値（9.6m/s, 23.5℃, 60Pa）に戻す">↺ 初期値</button>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">吹出し風速</span>
+            <input type="range" id="inlet-vel-slider" min="1.0" max="25.0" step="0.2" value="9.6">
+            <span class="slider-val" id="inlet-vel-val" style="min-width:48px;">9.6 m/s</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">吹出し温度</span>
+            <input type="range" id="inlet-temp-slider" min="15.0" max="32.0" step="0.5" value="23.5">
+            <span class="slider-val" id="inlet-temp-val" style="min-width:48px;">23.5 °C</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label" title="ファン静圧">送風静圧</span>
+            <input type="range" id="inlet-press-slider" min="0" max="150" step="5" value="60">
+            <span class="slider-val" id="inlet-press-val" style="min-width:48px;">60 Pa</span>
+          </div>
         </div>
-        <!-- 図4 -->
-        <div class="nozzle-card" data-nozzle="4">
-          <div class="nozzle-svg-wrap" id="nozzle-svg-4"></div>
-          <div class="nozzle-card-label" style="color:var(--nozzle-4)">図4</div>
-          <div class="nozzle-card-sub">細口テーパー</div>
+
+        <!-- ── 計算設定 ───────────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title">計算設定</div>
+          <div class="slider-row">
+            <span class="slider-label">サブステップ/フレーム</span>
+            <input type="range" id="substep-slider" min="1" max="15" value="5">
+            <span class="slider-val" id="substep-value">5</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════
+           タブ2: 表示切替 (モード・表示形式・スライス・拡大)
+      ══════════════════════════════════════════════════════════ -->
+      <div class="sidebar-tab-content" id="tab-display">
+        <!-- ── 表示モード ────────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title">物理量表示モード</div>
+          <div class="mode-buttons">
+            <button class="btn btn-mode active" data-mode="1">速度場</button>
+            <button class="btn btn-mode"        data-mode="0">温度分布</button>
+            <button class="btn btn-mode"        data-mode="2">圧力場</button>
+          </div>
+        </div>
+
+        <!-- ── 表示形式 ──────────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title">可視化形式</div>
+          <div class="mode-buttons view-buttons">
+            <button class="btn btn-view active" data-view="1">断面</button>
+            <button class="btn btn-view"        data-view="2">コンター</button>
+            <button class="btn btn-view"        data-view="0">3D</button>
+          </div>
+          <div id="slice-controls" style="margin-top:10px;">
+            <div class="slider-row">
+              <span class="slider-label">切断面</span>
+              <select id="slice-axis" style="background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:var(--radius-sm);padding:3px 8px;font-size:11px;">
+                <option value="1">X = 1.0 m (YZ面 中央)</option>
+                <option value="2">Y = 1.0 m (XZ面 中央)</option>
+              </select>
+            </div>
+            <div class="slider-row" style="margin-top:6px;">
+              <span class="slider-label">位置</span>
+              <input type="range" id="slice-pos" min="0.2" max="1.8" step="0.05" value="1.0">
+              <span class="slider-val" id="slice-pos-val">1.00 m</span>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(80,110,200,0.25);">
+            <button id="btn-nozzle-zoom" class="btn" style="width:100%;font-size:11px;padding:6px 10px;background:rgba(79,195,247,0.2);border:1px solid var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;" title="カメラ注視点を天井ノズルへ寄せ、拡大表示します">
+              <span>🔍 ノズル部拡大: ON</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════
+           タブ3: 統計・解析条件
+      ══════════════════════════════════════════════════════════ -->
+      <div class="sidebar-tab-content" id="tab-stats">
+        <!-- ── 解析統計 ───────────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title">解析統計</div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">ステップ</div>
+              <div class="stat-value accent" id="stat-step">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">経過時間</div>
+              <div class="stat-value" id="stat-time">0.00 s</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">最低温度</div>
+              <div class="stat-value accent" id="stat-tmin">23.5 °C</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">最高温度</div>
+              <div class="stat-value warning" id="stat-tmax">34.0 °C</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">最大速度</div>
+              <div class="stat-value" id="stat-vmax">0.0 m/s</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">FPS</div>
+              <div class="stat-value success" id="stat-fps">--</div>
+            </div>
+          </div>
+          <div class="slider-row" style="margin-top:8px;">
+            <span class="slider-label">格子セル数</span>
+            <span class="stat-value accent" id="stat-particles" style="font-size:11px;margin-left:auto;">--</span>
+          </div>
+          <div class="progress-wrap" style="margin-top:8px;height:5px;background:rgba(255,255,255,0.15);">
+            <div id="progress-bar"></div>
+          </div>
+        </div>
+
+        <!-- ── 解析条件 ───────────────────────────────────────────── -->
+        <div class="panel-section">
+          <div class="section-title">解析条件</div>
+          <table class="cond-table">
+            <tr><td>計算領域</td>     <td>2×2×2 m</td></tr>
+            <tr><td>壁面条件</td>     <td>No-slip</td></tr>
+            <tr><td>吹出し口径</td>   <td>Ø110 mm</td></tr>
+            <tr><td>吹出し風速</td>   <td id="cond-inlet-vel">9.6 m/s</td></tr>
+            <tr><td>吹出し温度</td>   <td id="cond-inlet-temp">23.5 °C</td></tr>
+            <tr><td>周囲温度</td>     <td>34.0 °C</td></tr>
+            <tr><td>排気口</td>       <td>床面全面 (P=0)</td></tr>
+            <tr><td>排気BC</td>       <td>大気圧ディリクレ・リサイクル</td></tr>
+            <tr><td>格子数</td>       <td>約262,144セル (64×64×64)</td></tr>
+            <tr><td>解析種別</td>     <td>非定常・時間発展積分</td></tr>
+            <tr><td>手法</td>        <td>有限体積法 (FVM) 構造格子</td></tr>
+          </table>
         </div>
       </div>
     </div>
-
-    <!-- ── ノズル仕様 ────────────────────────────────────────── -->
-    <div class="panel-section">
-      <div class="section-title">選択ノズル仕様</div>
-      <div id="nozzle-info">
-        <div class="info-row"><span>読み込み中...</span></div>
-      </div>
-    </div>
-
-    <!-- ── ノズル上面（入口）条件 ────────────────────────────── -->
-    <div class="panel-section">
-      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>ノズル上面（入口）条件</span>
-        <button id="btn-inlet-reset" class="btn" style="font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.1);color:var(--text-secondary);border:none;border-radius:4px;cursor:pointer;" title="初期値（9.6m/s, 23.5℃, 60Pa）に戻す">↺ 初期値</button>
-      </div>
-      <div class="slider-row">
-        <span class="slider-label" style="min-width:62px;">入口流速</span>
-        <input type="range" id="inlet-vel-slider" min="1.0" max="25.0" step="0.1" value="9.6">
-        <span class="slider-val" id="inlet-vel-val" style="min-width:48px;">9.6 m/s</span>
-      </div>
-      <div class="slider-row">
-        <span class="slider-label" style="min-width:62px;">入口温度</span>
-        <input type="range" id="inlet-temp-slider" min="10.0" max="40.0" step="0.5" value="23.5">
-        <span class="slider-val" id="inlet-temp-val" style="min-width:48px;">23.5 °C</span>
-      </div>
-      <div class="slider-row">
-        <span class="slider-label" style="min-width:62px;">加圧圧力</span>
-        <input type="range" id="inlet-press-slider" min="0" max="200" step="5" value="60">
-        <span class="slider-val" id="inlet-press-val" style="min-width:48px;">60 Pa</span>
-      </div>
-    </div>
-
-    <!-- ── 表示モード ────────────────────────────────────────── -->
-    <div class="panel-section">
-      <div class="section-title">表示モード</div>
-      <div class="mode-buttons">
-        <button class="mode-btn"        data-mode="0">温度</button>
-        <button class="mode-btn active" data-mode="1">速度</button>
-        <button class="mode-btn"        data-mode="2">圧力</button>
-      </div>
-    </div>
-
-    <div class="panel-section">
-      <div class="section-title">表示形式</div>
-      <div class="mode-buttons view-buttons">
-        <button class="view-btn" data-view="0">3Dメッシュ</button>
-        <button class="view-btn active" data-view="1">断面</button>
-        <button class="view-btn" data-view="2">コンター</button>
-      </div>
-      <div class="slice-controls visible" id="slice-controls">
-        <label>断面方向
-          <select id="slice-axis">
-            <option value="1" selected>YZ面 (X固定)</option>
-            <option value="2">XZ面 (Y固定)</option>
-          </select>
-        </label>
-        <label>位置 <output id="slice-position-value">1.00 m</output>
-          <input type="range" id="slice-position" min="0" max="2" step="0.01" value="1">
-        </label>
-        <button type="button" id="btn-nozzle-zoom" class="active"
-          style="margin-top:6px;width:100%;font-size:11px;padding:6px 8px;
-                 background:rgba(79,195,247,0.35);color:#e8f7ff;
-                 border:1px solid rgba(79,195,247,0.9);border-radius:6px;
-                 cursor:pointer;transition:background .15s,color .15s;">
-          🔍 ノズル部を拡大
-        </button>
-      </div>
-    </div>
-
-    <!-- ── 計算設定 ───────────────────────────────────────────── -->
-    <div class="panel-section">
-      <div class="section-title">計算設定</div>
-      <div class="slider-row">
-        <span class="slider-label">サブステップ/frame</span>
-        <input type="range" id="substep-slider" min="1" max="15" value="5">
-        <span class="slider-val" id="substep-value">5</span>
-      </div>
-    </div>
-
-    <!-- ── 解析統計 ───────────────────────────────────────────── -->
-    <div class="panel-section">
-      <div class="section-title">解析統計</div>
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div class="stat-label">ステップ</div>
-          <div class="stat-value accent" id="stat-step">0</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">経過時間</div>
-          <div class="stat-value" id="stat-time">0.00 s</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">最低温度</div>
-          <div class="stat-value accent" id="stat-tmin">23.5 °C</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">最高温度</div>
-          <div class="stat-value warning" id="stat-tmax">34.0 °C</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">最大速度</div>
-          <div class="stat-value" id="stat-vmax">0.0 m/s</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">FPS</div>
-          <div class="stat-value success" id="stat-fps">--</div>
-        </div>
-      </div>
-      <div class="slider-row" style="margin-top:8px;">
-        <span class="slider-label">格子セル数</span>
-        <span class="stat-value accent" id="stat-particles" style="font-size:11px;margin-left:auto;">--</span>
-      </div>
-      <div class="progress-wrap">
-        <div id="progress-bar"></div>
-      </div>
-    </div>
-
-    <!-- ── 解析条件 ───────────────────────────────────────────── -->
-    <div class="panel-section">
-      <div class="section-title">解析条件</div>
-      <table class="cond-table">
-        <tr><td>計算領域</td>     <td>2×2×2 m</td></tr>
-        <tr><td>壁面条件</td>     <td>No-slip</td></tr>
-        <tr><td>吹出し口径</td>   <td>Ø110 mm</td></tr>
-        <tr><td>吹出し風速</td>   <td id="cond-inlet-vel">9.6 m/s</td></tr>
-        <tr><td>吹出し温度</td>   <td id="cond-inlet-temp">23.5 °C</td></tr>
-        <tr><td>周囲温度</td>     <td>34.0 °C</td></tr>
-        <tr><td>排気口</td>       <td>床面全面 (P=0)</td></tr>
-        <tr><td>排気BC</td>       <td>大気圧ディリクレ・リサイクル</td></tr>
-        <tr><td>格子数</td>       <td>約262,144セル (64×64×64)</td></tr>
-        <tr><td>解析種別</td>     <td>非定常・時間発展積分</td></tr>
-        <tr><td>手法</td>        <td>有限体積法 (FVM) 構造格子</td></tr>
-      </table>
-    </div>
-
   </aside>
 
   <!-- ══════════════════════════════════════════════════════════
@@ -243,90 +291,53 @@
   <main class="viewport">
     <canvas id="sim-canvas"></canvas>
 
-    <!-- ビューポート情報オーバーレイ -->
-    <div class="viewport-overlay">
-      <div class="vp-tl">3D CFD 熱流体シミュレータ</div>
-      <div class="vp-tr" id="vp-mode-label">表示: 速度場 [m/s]</div>
-      <div class="vp-bl">ドラッグ: 回転 ／ CTRL+ドラッグ: 移動 ／ ホイール: ズーム</div>
-      <div class="vp-br">2000 × 2000 × 2000 mm</div>
+    <!-- メイン画面の上に直接表示するカラーバー＆凡例 (HUD) -->
+    <div class="viewport-hud-legend" id="viewport-hud-legend">
+      <!-- カラースケール -->
+      <div class="hud-section colorbar-wrap">
+        <div class="hud-title">カラースケール</div>
+        <div class="colorbar-title" id="colorbar-title">速度 [m/s]</div>
+        <div class="colorbar-inner">
+          <canvas id="colorbar-canvas" width="22" height="150"></canvas>
+          <div class="colorbar-labels">
+            <span id="colorbar-max">20+</span>
+            <span>10.0</span>
+            <span id="colorbar-min">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 流体温度凡例 -->
+      <div class="hud-section" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.15);width:100%;">
+        <div class="hud-title">流体温度凡例</div>
+        <div class="hud-legend-list">
+          <div class="hud-legend-item">
+            <div class="hud-legend-dot" style="background:#0000cc;"></div>
+            <span>低温 (23.5°C)</span>
+          </div>
+          <div class="hud-legend-item">
+            <div class="hud-legend-dot" style="background:#00cc00;"></div>
+            <span>中間温度</span>
+          </div>
+          <div class="hud-legend-item">
+            <div class="hud-legend-dot" style="background:#cccc00;"></div>
+            <span>やや高温</span>
+          </div>
+          <div class="hud-legend-item">
+            <div class="hud-legend-dot" style="background:#cc0000;"></div>
+            <span>高温 (34.0°C)</span>
+          </div>
+        </div>
+      </div>
     </div>
+
+
   </main>
 
   <!-- ══════════════════════════════════════════════════════════
        右パネル: カラーバー + 凡例
   ══════════════════════════════════════════════════════════ -->
-  <aside class="right-panel">
-
-    <!-- カラーバー -->
-    <div class="panel-section colorbar-wrap">
-      <div class="section-title">カラースケール</div>
-      <div class="colorbar-title" id="colorbar-title">速度 [m/s]</div>
-      <div class="colorbar-inner">
-        <canvas id="colorbar-canvas" width="24" height="200"></canvas>
-        <div class="colorbar-labels">
-          <span id="colorbar-max">20+</span>
-          <span>10.0</span>
-          <span id="colorbar-min">0</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 温度スケール凡例 -->
-    <div class="panel-section">
-      <div class="section-title">流体温度凡例</div>
-      <div style="display:flex;flex-direction:column;gap:6px;font-size:10px;">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:10px;height:10px;border-radius:2px;background:#0000cc;flex-shrink:0;"></div>
-          <span style="color:var(--text-secondary)">低温 (吹出し冷気流 23.5°C)</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:10px;height:10px;border-radius:2px;background:#00cc00;flex-shrink:0;"></div>
-          <span style="color:var(--text-secondary)">中間温度 (混合域)</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:10px;height:10px;border-radius:2px;background:#cccc00;flex-shrink:0;"></div>
-          <span style="color:var(--text-secondary)">やや高温</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:10px;height:10px;border-radius:2px;background:#cc0000;flex-shrink:0;"></div>
-          <span style="color:var(--text-secondary)">高温 (室内周囲温 34.0°C)</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ノズル断面図キー -->
-    <div class="panel-section">
-      <div class="section-title">ノズル断面図キー</div>
-      <div style="font-size:9px;color:var(--text-muted);line-height:1.8;">
-        <div>■ 外壁 (Ø118/Ø93 等)</div>
-        <div>┄ 内壁 (流路内径)</div>
-        <div>— 中心軸</div>
-        <div style="margin-top:6px;color:var(--text-secondary);">
-          全ノズル共通:<br>
-          総高さ 180mm<br>
-          (喉部 40mm + テーパー 140mm)
-        </div>
-      </div>
-    </div>
-
-    <!-- ソルバー概要説明 -->
-    <div class="panel-section">
-      <div class="section-title">FVMソルバー概要</div>
-      <div style="font-size:9px;color:var(--text-muted);line-height:1.7;">
-        <p style="margin-bottom:4px;color:var(--text-secondary);">
-          有限体積法 (Finite Volume Method)
-        </p>
-        <p>構造格子のコントロールボリュームフラックス収支に基づき質量・運動量・熱量を保存。Chorin射影法により非圧縮Navier-Stokes式を解法。</p>
-        <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">
-          <div>移流項: 風上差分 (Donor-Cell)</div>
-          <div>拡散項: 非均一2次中心差分</div>
-          <div>圧力連成: 射影法 (ヤコビ反復)</div>
-          <div>浮力項: Boussinesq近似</div>
-        </div>
-      </div>
-    </div>
-
-  </aside>
+  
 
 </div><!-- /.app-shell -->
 

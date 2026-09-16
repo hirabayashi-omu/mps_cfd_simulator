@@ -67,7 +67,7 @@ header {
   padding: 0 18px;
   background: rgba(10, 12, 30, 0.95);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(12px);
+  /* backdrop-filter: none; */
   z-index: 100;
 }
 
@@ -209,8 +209,8 @@ header {
   font-weight: 600;
   cursor: pointer;
   box-shadow: 4px 0 16px rgba(0,0,0,0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* backdrop-filter: none; */
+  -webkit-/* backdrop-filter: none; */
   transition: all 0.2s ease;
   display: none;
 }
@@ -231,7 +231,7 @@ header {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px;
-  backdrop-filter: blur(8px);
+  /* backdrop-filter: none; */
   transition: box-shadow 0.3s;
 }
 .panel-section:hover { box-shadow: var(--shadow-glow); }
@@ -450,9 +450,7 @@ input[type=range]::-webkit-slider-thumb {
 
 /* ビューポートオーバーレイ */
 .viewport-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+  display: none !important;
 }
 
 .vp-corner {
@@ -548,7 +546,7 @@ input[type=range]::-webkit-slider-thumb {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(8px);
+  /* backdrop-filter: none; */
   transition: opacity 0.4s;
 }
 #loading-overlay.hidden { opacity: 0; pointer-events: none; }
@@ -800,4 +798,390 @@ input[type=range]::-webkit-slider-thumb {
   font-size: 12px;
   color: var(--text-secondary);
   margin-bottom: 4px;
+}
+
+
+/* ── サイドバー タブ切り替えナビゲーション ───────────────────────── */
+.sidebar-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
+}
+.sidebar-tabs .tab-btn {
+  flex: 1;
+  padding: 6px 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  text-align: center;
+}
+.sidebar-tabs .tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+.sidebar-tabs .tab-btn.active {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(79, 195, 247, 0.35);
+}
+.sidebar-tab-content {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+.sidebar-tab-content.active {
+  display: flex;
+  animation: fadeIn 0.22s ease both;
+}
+
+/* スクロールバー強化 (いつでも見やすく操作しやすい) */
+.left-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.left-panel::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.left-panel::-webkit-scrollbar-thumb {
+  background: rgba(79, 195, 247, 0.4);
+  border-radius: 3px;
+}
+.left-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(79, 195, 247, 0.75);
+}
+
+
+/* ===================================================================
+   サイドバー 固定ヘッダー & 高コントラスト文字色オーバーライド
+   =================================================================== */
+
+/* ── 左パネルコンテナ (外枠は固定・スクロールさせない) ─────────────── */
+.left-panel {
+  position: absolute !important;
+  left: 0 !important;
+  top: 52px !important;
+  bottom: 0 !important;
+  width: 310px !important;
+  max-width: 90vw !important;
+  z-index: 40 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important; /* 内側の固定ヘッダーとスクロールエリアで制御 */
+  background: #0d111a !important;
+  /* backdrop-filter: none; */
+  -webkit-/* backdrop-filter: none; */
+  border-right: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 10px 0 35px rgba(0, 0, 0, 0.65) !important;
+  overflow: hidden !important; /* パネル自体は絶対にスクロールさせない */
+  color: #f0f6fc !important;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease !important;
+  will-change: transform;
+}
+
+.left-panel.collapsed {
+  transform: translateX(-100%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ── 1. 固定ヘッダー (スクロールしても最上部に残り続ける) ──────────── */
+.sidebar-header-fixed {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(22, 28, 44, 0.98);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-header-title {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #4fc3f7 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sidebar-close-btn {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 4px 10px !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.sidebar-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+
+/* ── 2. 固定タブバー (スクロールしても最上部に残り続ける) ──────────── */
+.sidebar-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 5px;
+  padding: 8px 10px;
+  background: rgba(14, 18, 28, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-tabs .tab-btn {
+  flex: 1;
+  padding: 8px 2px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #e6edf3 !important; /* はっきり読める明るい白灰色 */
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-align: center !important;
+  outline: none !important;
+}
+
+.sidebar-tabs .tab-btn:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.sidebar-tabs .tab-btn.active {
+  color: #ffffff !important;
+  background: #0091ea !important; /* 鮮明なシアンブルー */
+  border-color: #4fc3f7 !important;
+  box-shadow: 0 0 12px rgba(0, 145, 234, 0.6) !important;
+}
+
+/* ── 3. スクロール領域 (ここだけがスクロールする) ─────────────────── */
+.sidebar-scroll-area {
+  flex: 1;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scroll-area::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+}
+.sidebar-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(79, 195, 247, 0.5);
+  border-radius: 3px;
+}
+.sidebar-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(79, 195, 247, 0.85);
+}
+
+/* ── 4. 高コントラスト文字色 (黒背景でも読める白・明色) ──────────── */
+.left-panel * {
+  box-sizing: border-box;
+}
+
+.left-panel .section-title {
+  color: #80d8ff !important; /* 鮮やかな水色 */
+  font-weight: 700 !important;
+  font-size: 11px !important;
+}
+
+.left-panel .slider-label,
+.left-panel .stat-label,
+.left-panel span,
+.left-panel td,
+.left-panel div {
+  color: #e6edf3; /* 白灰色 */
+}
+
+.left-panel .stat-value {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.left-panel .cond-table td {
+  color: #ffffff !important;
+}
+
+.left-panel .cond-table td:first-child {
+  color: #a0aec0 !important; /* 明るいスレートグレー */
+}
+
+.left-panel select,
+.left-panel input[type="text"] {
+  background: #1a2236 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+.left-panel select option {
+  background: #0f172a !important;
+  color: #ffffff !important;
+}
+
+.btn-toggle-side {
+  background: rgba(0, 145, 234, 0.25) !important;
+  border: 1px solid #4fc3f7 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+}
+
+.floating-sidebar-tab {
+  position: absolute !important;
+  left: 0 !important;
+  top: 64px !important;
+  z-index: 35 !important;
+  background: rgba(13, 17, 26, 0.95) !important;
+  border: 1px solid rgba(79, 195, 247, 0.6) !important;
+  border-left: none !important;
+  border-radius: 0 8px 8px 0 !important;
+  padding: 8px 14px !important;
+  color: #4fc3f7 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 4px 0 20px rgba(0,0,0,0.6) !important;
+  /* backdrop-filter: none; */
+  transition: all 0.2s ease !important;
+  display: none;
+}
+.floating-sidebar-tab:hover {
+  background: rgba(22, 30, 46, 0.98) !important;
+  padding-left: 18px !important;
+  color: #ffffff !important;
+  border-color: #4fc3f7 !important;
+}
+.floating-sidebar-tab.visible {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+
+/* ===================================================================
+   メインビューポート上のフローティングHUD (カラースケール & 流体凡例)
+   =================================================================== */
+/* ── メインビューポート上のフローティングHUD (直接オーバーレイ) ─── */
+.viewport-hud-legend {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  z-index: 30 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  background: #0d111a !important;
+  /* backdrop-filter: none; */
+  -webkit-/* backdrop-filter: none; */
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 12px 14px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+  pointer-events: auto !important;
+  width: 160px !important;
+}
+
+.floating-sidebar-tab {
+  position: absolute !important;
+  left: 0 !important;
+  top: 14px !important;
+  z-index: 35 !important;
+  background: rgba(13, 17, 26, 0.95) !important;
+  border: 1px solid rgba(79, 195, 247, 0.6) !important;
+  border-left: none !important;
+  border-radius: 0 8px 8px 0 !important;
+  padding: 8px 14px !important;
+  color: #4fc3f7 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 4px 0 20px rgba(0,0,0,0.6) !important;
+  /* backdrop-filter: none; */
+  transition: all 0.2s ease !important;
+  display: none;
+}
+
+.hud-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hud-title {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #80d8ff !important;
+  margin-bottom: 4px !important;
+  align-self: flex-start !important;
+}
+
+.colorbar-wrap .colorbar-title {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  margin-bottom: 4px !important;
+}
+
+.colorbar-inner {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: stretch !important;
+}
+
+.colorbar-labels {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  font-size: 9px !important;
+  color: #c9d1d9 !important;
+  font-family: var(--font-mono) !important;
+}
+
+.hud-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 9px;
+  width: 100%;
+}
+
+.hud-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #e6edf3 !important;
+}
+
+.hud-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* 右パネルは完全除去 */
+.right-panel {
+  display: none !important;
 }
