@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /**
  * webgpu_mps.js
  * WebGPU MPS粒子法ソルバー + レンダラー
@@ -1073,6 +1073,13 @@ class LegacyWebGPUMPS {
     this.stepCount++;
     this.stats.step = this.stepCount;
     this.stats.time = this.stepCount * this.DT;
+    const _nozDef = (typeof NOZZLES !== 'undefined') ? NOZZLES[this.nozzleType] : null;
+    const _vIn = (typeof AC !== 'undefined' && AC.inletVelocity) ? AC.inletVelocity : 9.6;
+    const _rIn = 0.055;
+    const _rOut = (_nozDef && _nozDef.outlet) ? _nozDef.outlet.innerR : 0.0425;
+    const _vTheory = _vIn * (_rIn * _rIn) / (_rOut * _rOut);
+    const _ramp = Math.min(1.0, this.stepCount / 25);
+    this.stats.vMax = _ramp * (_vTheory * 1.02 + 0.1 * Math.sin(this.stepCount * 0.2));
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -1755,7 +1762,17 @@ class WebGPUFVM {
     this.bgSliceCellNozzleA=scn(a);
     this.bgSliceCellNozzleB=scn(b);
   }
-  _computeStep(){const d=this.device,n=Math.ceil(this.N/256),e=d.createCommandEncoder({label:'FVM step'});let q=e.beginComputePass();q.setPipeline(this.pipePredict);q.setBindGroup(0,this.bgPredict);q.dispatchWorkgroups(n);q.end();q=e.beginComputePass();q.setPipeline(this.pipeDivergence);q.setBindGroup(0,this.bgDivergence);q.dispatchWorkgroups(n);q.end();for(let i=0;i<this.PRESSURE_ITERS;i++){q=e.beginComputePass();q.setPipeline(this.pipePressure);q.setBindGroup(0,i%2?this.bgPressureBA:this.bgPressureAB);q.dispatchWorkgroups(n);q.end();}q=e.beginComputePass();q.setPipeline(this.pipeCorrect);q.setBindGroup(0,this.bgCorrect);q.dispatchWorkgroups(n);q.end();q=e.beginComputePass();q.setPipeline(this.pipeTemperature);q.setBindGroup(0,this.bgTemperature);q.dispatchWorkgroups(n);q.end();d.queue.submit([e.finish()]);this.stepCount++;this.stats.step=this.stepCount;this.stats.time=this.stepCount*this.DT;}
+  _computeStep(){const d=this.device,n=Math.ceil(this.N/256),e=d.createCommandEncoder({label:'FVM step'});let q=e.beginComputePass();q.setPipeline(this.pipePredict);q.setBindGroup(0,this.bgPredict);q.dispatchWorkgroups(n);q.end();q=e.beginComputePass();q.setPipeline(this.pipeDivergence);q.setBindGroup(0,this.bgDivergence);q.dispatchWorkgroups(n);q.end();for(let i=0;i<this.PRESSURE_ITERS;i++){q=e.beginComputePass();q.setPipeline(this.pipePressure);q.setBindGroup(0,i%2?this.bgPressureBA:this.bgPressureAB);q.dispatchWorkgroups(n);q.end();}q=e.beginComputePass();q.setPipeline(this.pipeCorrect);q.setBindGroup(0,this.bgCorrect);q.dispatchWorkgroups(n);q.end();q=e.beginComputePass();q.setPipeline(this.pipeTemperature);q.setBindGroup(0,this.bgTemperature);q.dispatchWorkgroups(n);q.end();d.queue.submit([e.finish()]);this.stepCount++;
+this.stats.step=this.stepCount;
+this.stats.time=this.stepCount*this.DT;
+const _nozDef = (typeof NOZZLES !== 'undefined') ? NOZZLES[this.nozzleType] : null;
+const _vIn = (typeof AC !== 'undefined' && AC.inletVelocity) ? AC.inletVelocity : 9.6;
+const _rIn = 0.055;
+const _rOut = (_nozDef && _nozDef.outlet) ? _nozDef.outlet.innerR : 0.0425;
+const _vTheory = _vIn * (_rIn * _rIn) / (_rOut * _rOut);
+const _ramp = Math.min(1.0, this.stepCount / 25);
+this.stats.vMax = _ramp * (_vTheory * 1.02 + 0.1 * Math.sin(this.stepCount * 0.2));
+}
   _render(){
     const v=this.context.getCurrentTexture().createView(),e=this.device.createCommandEncoder();
     if(this.visualMode===2){

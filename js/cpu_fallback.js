@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /**
  * cpu_fallback.js
  * WebGPU非対応ブラウザ向け CPU 有限体積法(FVM)流体シミュレーター
@@ -147,6 +147,14 @@ class CPUFallbackMPS {
                                 // 一致を優先する方針)。
     this.stats = { tMin: 23.5, tMax: 34, vMax: 0, step: 0, time: 0 };
 
+    // 乱流モデル (k-ε) 定数とフラグ
+    this.useTurbulence = false;
+    this.C_mu = 0.09;
+    this.C_eps1 = 1.44;
+    this.C_eps2 = 1.92;
+    this.sigma_k = 1.0;
+    this.sigma_eps = 1.3;
+
     // ── エンジン識別 (sim_mode.js の手動切替で参照) ────────────────────
     this.engineMode  = 'cpu';
     this.engineLabel = 'CPU (WebGL / FVM)';
@@ -223,6 +231,9 @@ class CPUFallbackMPS {
     this.vxs  = new Float32Array(N); this.vys  = new Float32Array(N);
     this.vzs  = new Float32Array(N); this.press= new Float32Array(N);
     this.temp = new Float32Array(N);
+    this.k_turb   = new Float32Array(N).fill(1e-4);
+    this.eps_turb = new Float32Array(N).fill(1e-4);
+    this.nu_t     = new Float32Array(N);
     this.ptype= new Uint8Array(N);
     this.inletFrac = new Float32Array(N);
     this._divBuf = new Float32Array(N);
@@ -937,6 +948,10 @@ class CPUFallbackMPS {
     }}}
     this.temp.set(tempBuf);
 
+    if (this.useTurbulence) {
+      this._stepTurbulence();
+    }
+
     this.stepCount++;
     this.stats.step = this.stepCount;
     this.stats.time = this.stepCount * this.DT;
@@ -1319,6 +1334,77 @@ class CPUFallbackMPS {
     }
   }
 
+  toggleTurbulence(on) {
+    if (on !== undefined) this.useTurbulence = !!on;
+    else this.useTurbulence = !this.useTurbulence;
+  }
+
+  _stepTurbulence() {
+    const NX = this.NX, NZ = this.NZ, DT = this.DT;
+    const xg = this.xg, yg = this.yg, zg = this.zg;
+    const C_mu = this.C_mu, C_eps1 = this.C_eps1, C_eps2 = this.C_eps2;
+    const sigma_k = this.sigma_k, sigma_eps = this.sigma_eps;
+    const NU = this.NU;
+
+    for (let i = 1; i < NX - 1; i++) {
+    for (let j = 1; j < NX - 1; j++) {
+    for (let k = 1; k < NZ - 1; k++) {
+      const c = this._idx(i, j, k);
+      if (this.ptype[c] !== this.FLUID) continue;
+
+      const u = this.vx[c], v = this.vy[c], w = this.vz[c];
+      const hx = xg[i+1] - xg[i-1], hy = yg[j+1] - yg[j-1], hz = zg[k+1] - zg[k-1];
+
+      const dudx = (this._at(this.vx,i+1,j,k) - this._at(this.vx,i-1,j,k)) / hx;
+      const dvdy = (this._at(this.vy,i,j+1,k) - this._at(this.vy,i,j-1,k)) / hy;
+      const dwdz = (this._at(this.vz,i,j,k+1) - this._at(this.vz,i,j,k-1)) / hz;
+
+      const dudy = (this._at(this.vx,i,j+1,k) - this._at(this.vx,i,j-1,k)) / hy;
+      const dvdx = (this._at(this.vy,i+1,j,k) - this._at(this.vy,i-1,j,k)) / hx;
+      const dudz = (this._at(this.vx,i,j,k+1) - this._at(this.vx,i,j,k-1)) / hz;
+      const dwdx = (this._at(this.vz,i+1,j,k) - this._at(this.vz,i-1,j,k)) / hx;
+      const dvdz = (this._at(this.vy,i,j,k+1) - this._at(this.vy,i,j,k-1)) / hz;
+      const dwdy = (this._at(this.vz,i,j+1,k) - this._at(this.vz,i,j-1,k)) / hy;
+
+      const S2 = 2*(dudx**2 + dvdy**2 + dwdz**2) + (dudy+dvdx)**2 + (dudz+dwdx)**2 + (dvdz+dwdy)**2;
+      const nut_c = this.nu_t[c];
+      const Pk = Math.min(10.0 * Math.max(1e-4, this.eps_turb[c]), nut_c * S2);
+
+      // 風上移流
+      const kc = this.k_turb[c];
+      const advK_x = u >= 0 ? u * (kc - this._at(this.k_turb,i-1,j,k)) / (xg[i]-xg[i-1]) : u * (this._at(this.k_turb,i+1,j,k) - kc) / (xg[i+1]-xg[i]);
+      const advK_y = v >= 0 ? v * (kc - this._at(this.k_turb,i,j-1,k)) / (yg[j]-yg[j-1]) : v * (this._at(this.k_turb,i,j+1,k) - kc) / (yg[j+1]-yg[j]);
+      const advK_z = w >= 0 ? w * (kc - this._at(this.k_turb,i,j,k-1)) / (zg[k]-zg[k-1]) : w * (this._at(this.k_turb,i,j,k+1) - kc) / (zg[k+1]-zg[k]);
+
+      const diffK_eff = NU + nut_c / sigma_k;
+      const d2k = (this._at(this.k_turb,i+1,j,k) - 2*kc + this._at(this.k_turb,i-1,j,k)) / ((hx/2)**2) +
+                  (this._at(this.k_turb,i,j+1,k) - 2*kc + this._at(this.k_turb,i,j-1,k)) / ((hy/2)**2) +
+                  (this._at(this.k_turb,i,j,k+1) - 2*kc + this._at(this.k_turb,i,j,k-1)) / ((hz/2)**2);
+
+      const eps_c = Math.max(1e-6, this.eps_turb[c]);
+      const k_star = Math.max(1e-6, kc + DT * (-advK_x - advK_y - advK_z + diffK_eff * d2k + Pk));
+      const k_new = k_star / (1.0 + DT * (eps_c / Math.max(1e-6, kc)));
+      this.k_turb[c] = Math.max(1e-6, k_new);
+
+      // eps 更新
+      const advEps_x = u >= 0 ? u * (eps_c - this._at(this.eps_turb,i-1,j,k)) / (xg[i]-xg[i-1]) : u * (this._at(this.eps_turb,i+1,j,k) - eps_c) / (xg[i+1]-xg[i]);
+      const advEps_y = v >= 0 ? v * (eps_c - this._at(this.eps_turb,i,j-1,k)) / (yg[j]-yg[j-1]) : v * (this._at(this.eps_turb,i,j+1,k) - eps_c) / (yg[j+1]-yg[j]);
+      const advEps_z = w >= 0 ? w * (eps_c - this._at(this.eps_turb,i,j,k-1)) / (zg[k]-zg[k-1]) : w * (this._at(this.eps_turb,i,j,k+1) - eps_c) / (zg[k+1]-zg[k]);
+
+      const diffEps_eff = NU + nut_c / sigma_eps;
+      const d2eps = (this._at(this.eps_turb,i+1,j,k) - 2*eps_c + this._at(this.eps_turb,i-1,j,k)) / ((hx/2)**2) +
+                    (this._at(this.eps_turb,i,j+1,k) - 2*eps_c + this._at(this.eps_turb,i,j-1,k)) / ((hy/2)**2) +
+                    (this._at(this.eps_turb,i,j,k+1) - 2*eps_c + this._at(this.eps_turb,i,j,k-1)) / ((hz/2)**2);
+
+      const eps_src = C_eps1 * (eps_c / Math.max(1e-6, kc)) * Pk;
+      const eps_star = Math.max(1e-6, eps_c + DT * (-advEps_x - advEps_y - advEps_z + diffEps_eff * d2eps + eps_src));
+      const eps_new = eps_star / (1.0 + DT * C_eps2 * (eps_c / Math.max(1e-6, kc)));
+      this.eps_turb[c] = Math.max(1e-6, eps_new);
+
+      this.nu_t[c] = Math.min(100.0 * NU, Math.max(0.0, C_mu * (this.k_turb[c]**2) / this.eps_turb[c]));
+    }}}
+  }
+
   destroy() {
     this.sectionSurfaceGeometry?.dispose();
     this.sectionGridGeometry?.dispose();
@@ -1339,14 +1425,6 @@ function jetColorJS(t) {
   return [r, g, b];
 }
 
-// ──────────────────────────────────────────────────────────────────
-//  グローバル公開
-//  トップレベルの `class` / `const` 宣言はグローバル「レキシカル」環境に
-//  入るだけで window のプロパティにはならない (var/function 宣言とは異なる)。
-//  sim_mode.js は window[名前] を見てソルバーを解決するため、
-//  明示的に登録しないと「CPUFallbackMPS が読み込まれていません」となる。
-//  webgpu_mps.js 末尾の window.WebGPUFVM = ... と同じ対応。
-// ──────────────────────────────────────────────────────────────────
 if (typeof window !== 'undefined') {
   window.CPUFallbackMPS = CPUFallbackMPS;
   window.jetColorJS     = jetColorJS;

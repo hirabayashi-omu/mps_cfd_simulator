@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /**
  * main.js
  * アプリケーションコントローラー
@@ -255,7 +255,9 @@ function startLoop() {
     const fps = fpsHistory.reduce((a,b)=>a+b,0) / fpsHistory.length;
 
     sim.tick();
-    updateStats(fps);
+    if (++statFrameCount % 3 === 0) {
+      updateStats(fps);
+    }
   }
   loop();
 }
@@ -419,6 +421,7 @@ if (elSubstep) {
 // ─────────────────────────────────────────────────────────────────
 //  ノズル上面（入口面）条件スライダー
 // ─────────────────────────────────────────────────────────────────
+let inletRafPending = false;
 function updateInletCondition() {
   if (!elInletVel || !elInletTemp) return;
   const vel = parseFloat(elInletVel.value);
@@ -430,11 +433,17 @@ function updateInletCondition() {
   if (elCondVel) elCondVel.textContent = vel.toFixed(1) + ' m/s';
   if (elCondTemp) elCondTemp.textContent = temp.toFixed(1) + ' °C';
 
-  if (sim && typeof sim.setInletCondition === 'function') {
-    sim.setInletCondition(vel, temp, press);
+  if (!inletRafPending) {
+    inletRafPending = true;
+    requestAnimationFrame(() => {
+      inletRafPending = false;
+      if (sim && typeof sim.setInletCondition === 'function') {
+        sim.setInletCondition(vel, temp, press);
+      }
+      updateNozzleInfo();
+      updateColorbarLabels(sim ? sim.displayMode : 0);
+    });
   }
-  updateNozzleInfo();
-  updateColorbarLabels(sim ? sim.displayMode : 0);
 }
 
 if (elInletVel) {
@@ -458,7 +467,19 @@ if (btnInletReset) {
 // ─────────────────────────────────────────────────────────────────
 //  カラーバー描画
 // ─────────────────────────────────────────────────────────────────
+function jetColorFallback(t) {
+  t = Math.max(0, Math.min(1, t));
+  let r, g, b;
+  if      (t < 0.125) { r=0;         g=0;              b=0.5+4*t; }
+  else if (t < 0.375) { r=0;         g=4*(t-0.125);    b=1; }
+  else if (t < 0.625) { r=4*(t-0.375); g=1;            b=1-4*(t-0.375); }
+  else if (t < 0.875) { r=1;         g=1-4*(t-0.625);  b=0; }
+  else                { r=1-4*(t-0.875); g=0;           b=0; }
+  return [r, g, b];
+}
+
 function drawColorbar() {
+  const getColor = (typeof jetColorJS === 'function') ? jetColorJS : jetColorFallback;
   if (!colorbarCanvas) return;
   const ctx = colorbarCanvas.getContext('2d');
   const w = colorbarCanvas.width = 24;
@@ -467,7 +488,7 @@ function drawColorbar() {
   const grad = ctx.createLinearGradient(0, h, 0, 0);
   for (let i = 0; i <= 20; i++) {
     const t  = i / 20;
-    const [r,g,b] = jetColorJS(t);
+    const [r,g,b] = getColor(t);
     grad.addColorStop(t, `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`);
   }
   ctx.fillStyle = grad;
@@ -574,6 +595,52 @@ if (modalTabs.length) {
     });
   });
 }
+
+
+// ─────────────────────────────────────────────────────────────────
+//  k-ε 乱流モデル UI トグル連携
+// ─────────────────────────────────────────────────────────────────
+const btnTurb       = document.getElementById('btn-turb');
+const btnTurbPanel  = document.getElementById('btn-turb-panel');
+const turbStatusLbl = document.getElementById('turb-status-label');
+
+function updateTurbUI(on) {
+  const text      = on ? '🌀 k-ε 乱流: ON' : '🌀 k-ε 乱流: OFF';
+  const panelText = on ? '🌀 k-ε 乱流 (ON)' : '🌀 k-ε 乱流 (OFF)';
+  const labelText = on ? '有効' : '無効';
+  const color     = on ? '#00e5ff' : '#888';
+  const bg        = on ? 'rgba(0,229,255,0.15)' : 'rgba(255,255,255,0.05)';
+
+  if (btnTurb) {
+    btnTurb.textContent = text;
+    btnTurb.style.borderColor = color;
+    btnTurb.style.color = color;
+    btnTurb.style.background = bg;
+  }
+  if (btnTurbPanel) {
+    btnTurbPanel.textContent = panelText;
+    btnTurbPanel.style.borderColor = color;
+    btnTurbPanel.style.color = color;
+    btnTurbPanel.style.background = bg;
+  }
+  if (turbStatusLbl) {
+    turbStatusLbl.textContent = labelText;
+    turbStatusLbl.style.color = color;
+  }
+}
+
+function toggleTurbulence() {
+  if (!sim) return;
+  const next = !sim.useTurbulence;
+  sim.useTurbulence = next;
+  if (typeof sim.toggleTurbulence === 'function') {
+    sim.toggleTurbulence(next);
+  }
+  updateTurbUI(next);
+}
+
+if (btnTurb)      btnTurb.addEventListener('click', toggleTurbulence);
+if (btnTurbPanel) btnTurbPanel.addEventListener('click', toggleTurbulence);
 
 // ─────────────────────────────────────────────────────────────────
 //  起動
