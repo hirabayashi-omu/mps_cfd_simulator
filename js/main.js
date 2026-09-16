@@ -225,6 +225,8 @@ async function startApp() {
   if (slicePosition) slicePosition.value = String(sim.slicePosition ?? 1);
   if (slicePositionValue) slicePositionValue.textContent = (sim.slicePosition ?? 1).toFixed(2) + ' m';
   if (sliceAxis) sliceAxis.value = String(sim.sliceMode ?? 1);
+  sim.setNozzleFocus?.(nozzleZoom);
+  applyNozzleZoomButtonStyle();
   sim.updateView?.();
 
   // 初期状態で停止したままだと、キャンバスが静止画に見えるため自動開始する。
@@ -385,7 +387,7 @@ slicePosition?.addEventListener('input', updateSlice);
 //  対応。カメラの注視点をノズル軸付近(天井やや上)に移し、距離を縮める。
 //  ON/OFF は sim.setNozzleFocus() (CPU/GPU共通インターフェース) 経由。
 // ─────────────────────────────────────────────────────────────────
-let nozzleZoom = false;
+let nozzleZoom = true;
 
 function applyNozzleZoomButtonStyle() {
   if (!btnNozzleZoom) return;

@@ -1352,10 +1352,10 @@ class WebGPUFVM {
     this.bgPressureAB=this.bgPressureBA=this.bgCorrect=this.bgTemperature=null; this.bgRenderA=this.bgRenderB=null;
     this.bgRoom=this.bgNozzle=null; this.stepCount=0; this.stateIndex=0; this.paused=true;
     this.displayMode=1; this.visualMode=1; this.sliceMode=1; this.slicePosition=1; this.viewSignature='';
-    this.nozzleFocus=false; // ノズル部拡大トグル(断面・コンター表示時のみ有効)
+    this.nozzleFocus=true; // ノズル部拡大トグル(断面・コンター表示時のみ有効)
     this.substepsPerFrame=8; this.steadyMode=false; this.steadyComplete=false;
     this.stats={tMin:this.T_IN,tMax:this.T_REF,vMax:0,step:0,time:0};
-    this.camera={theta:Math.PI/2,phi:Math.PI/2-0.04,radius:4,target:[0,0,0]};
+    this.camera={theta:Math.PI/2,phi:Math.PI/2-0.04,radius:0.7,target:[0,(this.DOM+this.DOM_Z)/2-this.DOM/2,0]};
   }
   async init(canvas,nozzleType=1){this.canvas=canvas;this.nozzleType=nozzleType;if(!navigator.gpu)throw Error('WebGPU未対応ブラウザです');const a=await navigator.gpu.requestAdapter();if(!a)throw Error('WebGPUアダプター取得失敗');this.device=await a.requestDevice();this.format=navigator.gpu.getPreferredCanvasFormat();canvas.width=canvas.width||canvas.clientWidth||800;canvas.height=canvas.height||canvas.clientHeight||600;this.context=canvas.getContext('webgpu');this.context.configure({device:this.device,format:this.format,alphaMode:'premultiplied'});await this._createBuffers();await this._createPipelines();this._createBindGroups();this._setupCamera();this.updateView();return this;}
   _idx(i,j,k){return i+this.NX*(j+this.NX*k);}
@@ -1811,7 +1811,7 @@ class WebGPUFVM {
       const targetY = this.nozzleFocus ? (this.DOM+this.DOM_Z)/2-this.DOM/2 : 0;
       this.camera.target=[0,targetY,0];
       if(this.nozzleFocus){
-        if(this._radiusBeforeFocus===undefined) this._radiusBeforeFocus=this.camera.radius;
+        if(this._radiusBeforeFocus===undefined) this._radiusBeforeFocus=4.0;
         this.camera.radius=0.7;
       } else if(this._radiusBeforeFocus!==undefined){
         this.camera.radius=this._radiusBeforeFocus;

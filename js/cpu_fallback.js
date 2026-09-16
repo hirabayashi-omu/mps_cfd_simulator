@@ -134,7 +134,7 @@ class CPUFallbackMPS {
     this.visualMode  = 1; // 0=3D粒子, 1=断面, 2=コンター
     this.sliceMode   = 1; // 1=YZ面, 2=XZ面
     this.slicePosition = 1.0;
-    this.nozzleFocus = false; // ノズル部拡大トグル(断面・コンター表示時のみ有効)
+    this.nozzleFocus = true; // ノズル部拡大トグル(断面・コンター表示時のみ有効)
     this.viewSignature = '';
     this.paused      = true;
     this.stepCount   = 0;
