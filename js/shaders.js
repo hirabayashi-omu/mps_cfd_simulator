@@ -1214,25 +1214,24 @@ const SHADER_FVM_PREDICT = /* wgsl */`${FVM_COMMON}
 fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
 @compute @workgroup_size(256) fn main(@builtin(global_invocation_id) g:vec3u) {
   let c=g.x; if(c>=p.N){return;} let q=cellCoord(c,p.NX); let a=s[c]; let link=connection[c];
+  let isCeilInlet = (link.w > 0.5f);
   if(a.pos.w>0.5f){
-    if(link.w>0.5f){
-      let nozzleCell=s[u32(link.x)];
-      // ★冷風の連続的吹き出しを保証:
-      // 以前は室内の圧力上昇によって吹き出しを停止させる非物理的なブレーキ(dynamicFactor)が存在し、
-      // 噴流が数ステップで減速・完全停止してしまう原因となっていた。
-      // ノズル最下層セルの速度を直接伝達し、連続の式による設計出口速度(V_IN)を確実に維持する。
-      var vOut = nozzleCell.vel.xyz;
-      let minSpeed = abs(p.V_IN) * 0.75f;
-      if (abs(vOut.z) < minSpeed) {
-        vOut.z = -abs(p.V_IN);
-      }
-      us[c]=vec4f(vOut, 0.0f);
-    } else {
-      us[c]=a.vel;
-    }
+    us[c]=a.vel;
     return;
   }
-  if(c<p.NX*p.NX*p.NX && (q.x==0 || q.x==i32(p.NX)-1 || q.y==0 || q.y==i32(p.NX)-1 || q.z==i32(p.NX)-1)){us[c]=a.vel;return;}
+  if(isCeilInlet){
+    let nozzleCell=s[u32(link.x)];
+    // ★冷風の連続的吹き出しを保証:
+    // ノズル最下層セルの速度を直接伝達し、連続の式による設計出口速度を確実に維持する。
+    var vOut = nozzleCell.vel.xyz;
+    let minSpeed = abs(p.V_IN) * 0.75f;
+    if (abs(vOut.z) < minSpeed) {
+      vOut.z = -abs(p.V_IN);
+    }
+    us[c]=vec4f(vOut, 0.0f);
+    return;
+  }
+  if(c<p.NX*p.NX*p.NX && !isCeilInlet && (q.x==0 || q.x==i32(p.NX)-1 || q.y==0 || q.y==i32(p.NX)-1 || q.z==i32(p.NX)-1)){us[c]=a.vel;return;}
   let h1=cellDist[c*2u]; let h2=cellDist[c*2u+1u];
   let hxE=h1.x; let hxW=h1.y; let hyN=h1.z; let hyS=h1.w;
   let hzU=h2.x; let hzD=h2.y;
@@ -1349,18 +1348,14 @@ fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
   let uIdx=neighborIndex(c,4u);
   let isCeilInlet=(c<roomN)&&(q.z==i32(p.NX)-1)&&(uIdx>=roomN);
 
-  // ★天井開口セル: ノズル最下層(出口)の圧力をそのまま受け取り、室内側へ100%連続伝達する
-  if(isCeilInlet){
-    pout[c]=pin[uIdx];
-    return;
-  }
   // ★ノズル流入面 (φ110 INLET セル, a.pos.w > 1.5f): 冷風扇からの送風による定常な加圧を維持
   if(a.pos.w > 1.5f){
     pout[c] = p.P_INLET;
     return;
   }
   // 天井開口部・INLET以外の壁セル、および室内境界壁面はDirichlet条件(p=0)
-  if(a.pos.w>0.5f||(c<roomN&&(q.x==0||q.x==i32(p.NX)-1||q.y==0||q.y==i32(p.NX)-1||q.z==0||q.z==i32(p.NX)-1))){pout[c]=0.0f;return;}
+  // 天井開口部(isCeilInlet)はノズル最下層(pin[uIdx])と連続的にポアソン方程式を解く
+  if(a.pos.w>0.5f||(c<roomN&&!isCeilInlet&&(q.x==0||q.x==i32(p.NX)-1||q.y==0||q.y==i32(p.NX)-1||q.z==0||q.z==i32(p.NX)-1))){pout[c]=0.0f;return;}
   let h1=cellDist[c*2u]; let h2=cellDist[c*2u+1u];
   let hxE=h1.x; let hxW=h1.y; let hyN=h1.z; let hyS=h1.w;
   let hzU=h2.x; let hzD=h2.y;
@@ -1397,25 +1392,14 @@ fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
   let c=g.x;if(c>=p.N){return;}let a=s[c];
   let roomN=p.NX*p.NX*p.NX;
   let uIdx=neighborIndex(c,4u);
-  let isCeilInlet=(c<roomN)&&(uIdx>=roomN);
-
   if(a.pos.w>0.5f){
-    if(isCeilInlet){
-      let nozPr = pr[uIdx];
-      var inlet=a;
-      inlet.vel=vec4f(us[c].xyz, nozPr); // ノズル出口圧力を確実に保持
-      inlet.aux.x=p.T_IN;
-      inlet.aux.z=length(inlet.vel.xyz);
-      out[c]=inlet;
-    } else {
-      var fixedCell=a;
-      if(a.pos.w>1.5f){
-        fixedCell.vel = vec4f(a.vel.xyz, p.P_INLET); // INLET加圧圧力を保持
-        fixedCell.aux.x=p.T_IN;
-        fixedCell.aux.z=length(a.vel.xyz);
-      }
-      out[c]=fixedCell;
+    var fixedCell=a;
+    if(a.pos.w>1.5f){
+      fixedCell.vel = vec4f(a.vel.xyz, p.P_INLET); // INLET加圧圧力を保持
+      fixedCell.aux.x=p.T_IN;
+      fixedCell.aux.z=length(a.vel.xyz);
     }
+    out[c]=fixedCell;
     return;
   }
   let h1=cellDist[c*2u]; let h2=cellDist[c*2u+1u];
@@ -1458,7 +1442,10 @@ fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
     return;
   }
   let q=cellCoord(c,p.NX);
-  if(c<p.NX*p.NX*p.NX&&(q.x==0||q.x==i32(p.NX)-1||q.y==0||q.y==i32(p.NX)-1||q.z==i32(p.NX)-1)){
+  let roomN=p.NX*p.NX*p.NX;
+  let uIdx=neighborIndex(c,4u);
+  let isCeilInlet=(c<roomN)&&(q.z==i32(p.NX)-1)&&(uIdx>=roomN);
+  if(c<roomN&&!isCeilInlet&&(q.x==0||q.x==i32(p.NX)-1||q.y==0||q.y==i32(p.NX)-1||q.z==i32(p.NX)-1)){
     var boundaryCell=a;
     if(a.pos.w>1.5f){ boundaryCell.aux.x=p.T_IN; }
     out[c]=boundaryCell;

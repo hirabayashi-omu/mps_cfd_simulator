@@ -1396,7 +1396,8 @@ class WebGPUFVM {
       if(side||k===0||(topWall&&!inOutlet)){
         type=this.WALL;
       }else if(inOutlet){
-        type=this.INLET;
+        // 天井開口部はノズルからの通過流体セル(FLUID)。真のINLETはノズル最上部(z=2.18m)
+        type=this.FLUID;
         vz=-n.outlet.velocity;
         t=this.T_IN;
       }
@@ -1678,11 +1679,11 @@ class WebGPUFVM {
   }
   _createNozzleConnection(roomData){
     const roomN=this.NX**3,base=roomN,links=new Float32Array(this.N*4),bottom=this.nozzleBottomIndices||[];
-    const kTop=this.NX-1;
+    const kTop=this.NX-1, outletR = NOZZLES[this.nozzleType].outlet.r;
     for(let i=0;i<this.NX;i++)for(let j=0;j<this.NX;j++){
       const c=this._idx(i,j,kTop),b=c*16;
-      if(roomData[b+3]!==this.INLET||!bottom.length)continue;
-      const x=roomData[b],y=roomData[b+1];
+      const x=roomData[b],y=roomData[b+1],r=Math.hypot(x-1,y-1);
+      if(r > outletR || !bottom.length)continue;
       let nearest=bottom[0],best=Infinity;
       for(const index of bottom){
         const n=index*16,dx=this.nozzleStateData[n]-x,dy=this.nozzleStateData[n+1]-y,d=dx*dx+dy*dy;
