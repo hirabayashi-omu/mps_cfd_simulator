@@ -1185,3 +1185,35 @@ input[type=range]::-webkit-slider-thumb {
 .right-panel {
   display: none !important;
 }
+
+/* ── 再展開フローティングボタン (絶対に隠れない fixed 表示) ─────── */
+.floating-sidebar-tab {
+  position: fixed !important;
+  left: 0 !important;
+  top: 64px !important;
+  z-index: 9999 !important;
+  background: #0d1726 !important;
+  border: 1.5px solid #00e5ff !important;
+  border-left: none !important;
+  border-radius: 0 8px 8px 0 !important;
+  padding: 10px 16px !important;
+  color: #00e5ff !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 4px 4px 20px rgba(0, 0, 0, 0.75) !important;
+  display: none !important;
+  transition: padding-left 0.15s ease, background 0.15s ease !important;
+}
+
+.floating-sidebar-tab:hover {
+  background: #142238 !important;
+  padding-left: 20px !important;
+  color: #ffffff !important;
+}
+
+.floating-sidebar-tab.visible {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}

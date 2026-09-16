@@ -11,10 +11,16 @@
 window.toggleSidebar = function(forceState) {
   const panel = document.getElementById('left-panel');
   const openBtn = document.getElementById('btn-open-sidebar');
+  const toggleBtn = document.getElementById('btn-toggle-sidebar');
   if (!panel) return;
   const isCollapsed = (forceState !== undefined) ? forceState : !panel.classList.contains('collapsed');
   panel.classList.toggle('collapsed', isCollapsed);
   if (openBtn) openBtn.classList.toggle('visible', isCollapsed);
+  if (toggleBtn) {
+    toggleBtn.innerHTML = isCollapsed ? '<span>▶ パネル展開</span>' : '<span>◀ パネル閉じる</span>';
+    toggleBtn.style.background = isCollapsed ? 'rgba(0, 229, 255, 0.25)' : 'rgba(255, 255, 255, 0.08)';
+    toggleBtn.style.borderColor = isCollapsed ? '#00e5ff' : 'rgba(255, 255, 255, 0.18)';
+  }
 };
 
 window.switchSidebarTab = function(targetId) {
@@ -83,7 +89,7 @@ window.switchSidebarTab = function(targetId) {
        左パネル: コントロール
   ══════════════════════════════════════════════════════════ -->
   <button id="btn-open-sidebar" class="floating-sidebar-tab" onclick="window.toggleSidebar(false)" title="コントロールパネルを開く">
-    <span>☰ コントロール</span>
+    <span>☰ コントロール展開</span>
   </button>
   <aside class="left-panel" id="left-panel">
     <!-- 固定ヘッダー (スクロールしても常に最上部に固定) -->
