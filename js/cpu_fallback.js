@@ -638,7 +638,8 @@ class CPUFallbackMPS {
   _updateSectionSurface() {
     if (!this.sectionSurfaceGeometry) return;
     const show = (this.visualMode !== 0);
-    this.sectionSurface.visible  = show;
+    const showSurface = show && (this.displayMode !== 1 || this.visualMode === 2);
+    this.sectionSurface.visible  = showSurface;
     this.sectionGridLines.visible = show;
     if (!show) return;
 
@@ -1209,7 +1210,7 @@ class CPUFallbackMPS {
   _updateVectorLines() {
     if (!this.vectorGeometry || !this.vectorLines) return;
 
-    const show = (this.displayMode === 1);
+    const show = (this.displayMode === 1) && (this.visualMode !== 2);
     this.vectorLines.visible = show;
     if (!show) return;
 

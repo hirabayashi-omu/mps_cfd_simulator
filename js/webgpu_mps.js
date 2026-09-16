@@ -1799,20 +1799,28 @@ this.stats.vMax = _ramp * (_vTheory * 1.02 + 0.1 * Math.sin(this.stepCount * 0.2
       }
     }
     if(this.visualMode===2){
-      // コンター表示: 速度(displayMode===1)でもスカラーコンターを描画
+      // ── コンター表示 ──────────────────────────────────────────
+      // 室内側: 通常の滑らかな補間コンター
       q.setPipeline(this.pipeSliceRender);q.setBindGroup(0,this.bgSliceRender);q.draw(64*64*6);
+      // ノズル部分: 形状が崩れないよう微細セル塗りで表示
       if(this.nozzleCount>0){
         q.setPipeline(this.pipeSliceCellNozzle);q.setBindGroup(0,this.stateIndex?this.bgSliceCellNozzleB:this.bgSliceCellNozzleA);q.draw(6,this.nozzleCount);
       }
+      // ※ 速度モードであってもベクトルは描かず「コンターのみ」とする
     }else if(this.visualMode===1){
-      // 断面表示: 常にスカラーセルを描画し、速度モード時はベクトルを重畳描画
-      q.setPipeline(this.pipeSliceCell);q.setBindGroup(0,this.stateIndex?this.bgSliceCellB:this.bgSliceCellA);q.draw(6,this.NX*this.NX);
-      if(this.nozzleCount>0){
-        q.setPipeline(this.pipeSliceCellNozzle);q.setBindGroup(0,this.stateIndex?this.bgSliceCellNozzleB:this.bgSliceCellNozzleA);q.draw(6,this.nozzleCount);
+      // ── 断面表示 ────────────────────────────────────────────
+      if(this.displayMode===1){
+        // 速度モードの断面表示は「ベクトルのみ」(セル塗りは非表示)
+        q.setPipeline(this.pipeVector);q.setBindGroup(0,this.bgVector);q.draw(6,this.NX**3);
+      }else{
+        // 温度・圧力モードの断面表示: 室内セル塗り + ノズル微細セル塗り
+        q.setPipeline(this.pipeSliceCell);q.setBindGroup(0,this.stateIndex?this.bgSliceCellB:this.bgSliceCellA);q.draw(6,this.NX*this.NX);
+        if(this.nozzleCount>0){
+          q.setPipeline(this.pipeSliceCellNozzle);q.setBindGroup(0,this.stateIndex?this.bgSliceCellNozzleB:this.bgSliceCellNozzleA);q.draw(6,this.nozzleCount);
+        }
       }
-      if(this.displayMode===1){q.setPipeline(this.pipeVector);q.setBindGroup(0,this.bgVector);q.draw(6,this.NX**3);}
     }else{
-      // 3D表示: 常にスカラー粒子/セルを描画
+      // ── 3D表示 ─────────────────────────────────────────────
       q.setPipeline(this.pipeRender);q.setBindGroup(0,this.stateIndex?this.bgRenderB:this.bgRenderA);q.draw(4,this.N);
       const roomN = this.NX ** 3;
       if(this.displayMode===1){q.setPipeline(this.pipeVector);q.setBindGroup(0,this.bgVector);q.draw(6,roomN);}

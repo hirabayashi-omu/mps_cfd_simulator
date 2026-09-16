@@ -1099,15 +1099,8 @@ ${WGSL_COMMON}
 struct SliceCamera { mvp: mat4x4f, viewPos: vec4f, slice_mode: f32, slice_pos: f32, slice_thick: f32, view_mode: f32, };
 @group(0) @binding(3) var<uniform> cam: SliceCamera;
 @fragment fn main(@location(0) value: f32, @location(1) world: vec3f) -> @location(0) vec4f {
-  let z_nozzle = world.y + 1.0f - p.DOM;
-  if (z_nozzle >= 0.0f && z_nozzle <= 0.18f) {
-    let sectionRadial = select(abs(world.z), abs(world.x), cam.slice_mode > 1.5f);
-    let r = nozzleInnerRadius(p.NOZZLE, z_nozzle);
-    let outer = nozzleOuterRadius(p.NOZZLE, z_nozzle);
-    if (abs(sectionRadial - outer) < 0.0035f) { return vec4f(0.3f, 0.85f, 1.0f, 1.0f); }
-    if (abs(sectionRadial - r) < 0.0025f) { return vec4f(1.0f, 0.75f, 0.25f, 1.0f); }
-  }
-  if (value < -0.5f) { discard; }
+  // 天井より上(ノズル部分)は微細セル塗り(pipeSliceCellNozzle)で描画するため、通常コンター面は室内(天井面まで)でクリップ
+  if (world.y > 1.001f || value < -0.5f) { discard; }
   return vec4f(jetColor(value), 0.78f);
 }
 `;
@@ -1508,22 +1501,9 @@ fn findAxisIndex(val:f32, offset:u32, n:u32) -> u32 {
 
 @compute @workgroup_size(8,8) fn main(@builtin(global_invocation_id) g:vec3u){
   if(g.x>=65u||g.y>=65u){return;} let id=g.y*65u+g.x;
-  let u=f32(g.x)/64.0f*p.DOM; let z=f32(g.y)/64.0f*p.DOM_Z;
+  // コンター面は室内側(0〜DOM)のみを対象とし、ノズル部分は専用の微細セル塗りで描画する
+  let u=f32(g.x)/64.0f*p.DOM; let z=f32(g.y)/64.0f*p.DOM;
   let sample=select(vec3f(cam.slice_pos,u,z),vec3f(u,cam.slice_pos,z),cam.slice_mode>1.5f);
-  if(z>p.DOM){
-    var nearest=p.NX*p.NX*p.NX;var best=1.0f;
-    for(var ni=p.NX*p.NX*p.NX;ni<p.N;ni++){
-      let d=cells[ni].pos.xyz-sample;let d2=dot(d,d);
-      if(d2<best){best=d2;nearest=ni;}
-    }
-    let nc=cells[nearest];
-    if(best>0.005f*0.005f*2.0f||nc.pos.w>0.5f){values[id]=-1.0f;return;}
-    var nv=nc.aux.x;
-    if(p.DISP_MODE==1u){nv=nc.aux.z;}else if(p.DISP_MODE==2u){nv=abs(nc.vel.w);}
-    if(p.DISP_MODE==0u){nv=(nv-p.T_MIN)/(p.T_MAX-p.T_MIN);}else if(p.DISP_MODE==1u){nv/=p.V_MAX;}else{let pScale=max(40.0f, p.P_INLET * 1.2f); nv/=pScale;}
-    values[id]=clamp(nv,0.0f,1.0f);
-    return;
-  }
   let axCount = p.NX + 1u;
   let ix = findAxisIndex(sample.x, 0u, axCount);
   let iy = findAxisIndex(sample.y, axCount, axCount);
