@@ -1217,3 +1217,68 @@ input[type=range]::-webkit-slider-thumb {
   align-items: center !important;
   gap: 6px !important;
 }
+
+
+/* ── 表示モード & 可視化形式ボタンスタイル強化 ───────────────────── */
+.mode-buttons {
+  display: flex !important;
+  gap: 6px !important;
+}
+
+.mode-btn, .btn-mode {
+  flex: 1 !important;
+  padding: 8px 4px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e6edf3 !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  text-align: center !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+}
+
+.mode-btn:hover, .btn-mode:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.mode-btn.active, .btn-mode.active {
+  background: #0091ea !important;
+  border-color: #4fc3f7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(0, 145, 234, 0.6) !important;
+  font-weight: 700 !important;
+}
+
+.view-btn, .btn-view {
+  flex: 1 !important;
+  padding: 8px 4px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e6edf3 !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  text-align: center !important;
+  transition: all 0.2s ease !important;
+  outline: none !important;
+}
+
+.view-btn:hover, .btn-view:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.view-btn.active, .btn-view.active {
+  background: #0091ea !important;
+  border-color: #4fc3f7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(0, 145, 234, 0.6) !important;
+  font-weight: 700 !important;
+}
