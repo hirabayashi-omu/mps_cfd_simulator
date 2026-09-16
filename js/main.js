@@ -53,6 +53,8 @@ const elInletVel    = document.getElementById('inlet-vel-slider');
 const elInletVelVal = document.getElementById('inlet-vel-val');
 const elInletTemp   = document.getElementById('inlet-temp-slider');
 const elInletTempVal= document.getElementById('inlet-temp-val');
+const elInletPress  = document.getElementById('inlet-press-slider');
+const elInletPressVal= document.getElementById('inlet-press-val');
 const btnInletReset = document.getElementById('btn-inlet-reset');
 const elCondVel     = document.getElementById('cond-inlet-vel');
 const elCondTemp    = document.getElementById('cond-inlet-temp');
@@ -421,13 +423,15 @@ function updateInletCondition() {
   if (!elInletVel || !elInletTemp) return;
   const vel = parseFloat(elInletVel.value);
   const temp = parseFloat(elInletTemp.value);
+  const press = elInletPress ? parseFloat(elInletPress.value) : 60.0;
   if (elInletVelVal) elInletVelVal.textContent = vel.toFixed(1) + ' m/s';
   if (elInletTempVal) elInletTempVal.textContent = temp.toFixed(1) + ' °C';
+  if (elInletPressVal) elInletPressVal.textContent = Math.round(press) + ' Pa';
   if (elCondVel) elCondVel.textContent = vel.toFixed(1) + ' m/s';
   if (elCondTemp) elCondTemp.textContent = temp.toFixed(1) + ' °C';
 
   if (sim && typeof sim.setInletCondition === 'function') {
-    sim.setInletCondition(vel, temp);
+    sim.setInletCondition(vel, temp, press);
   }
   updateNozzleInfo();
   updateColorbarLabels(sim ? sim.displayMode : 0);
@@ -439,10 +443,14 @@ if (elInletVel) {
 if (elInletTemp) {
   elInletTemp.addEventListener('input', updateInletCondition);
 }
+if (elInletPress) {
+  elInletPress.addEventListener('input', updateInletCondition);
+}
 if (btnInletReset) {
   btnInletReset.addEventListener('click', () => {
     if (elInletVel) elInletVel.value = '9.6';
     if (elInletTemp) elInletTemp.value = '23.5';
+    if (elInletPress) elInletPress.value = '60';
     updateInletCondition();
   });
 }
@@ -482,7 +490,8 @@ function updateColorbarLabels(mode) {
   } else {
     titleEl.textContent = '圧力 [Pa]';
     minEl.textContent   = '0';
-    maxEl.textContent   = 'High';
+    const pMax = sim ? (sim.inletPressure ?? 60) : 60;
+    maxEl.textContent   = Math.round(pMax) + '+';
   }
 }
 

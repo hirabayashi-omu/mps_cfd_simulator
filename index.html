@@ -102,7 +102,7 @@
     <div class="panel-section">
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>ノズル上面（入口）条件</span>
-        <button id="btn-inlet-reset" class="btn" style="font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.1);color:var(--text-secondary);border:none;border-radius:4px;cursor:pointer;" title="初期値（9.6m/s, 23.5℃）に戻す">↺ 初期値</button>
+        <button id="btn-inlet-reset" class="btn" style="font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.1);color:var(--text-secondary);border:none;border-radius:4px;cursor:pointer;" title="初期値（9.6m/s, 23.5℃, 60Pa）に戻す">↺ 初期値</button>
       </div>
       <div class="slider-row">
         <span class="slider-label" style="min-width:62px;">入口流速</span>
@@ -113,6 +113,11 @@
         <span class="slider-label" style="min-width:62px;">入口温度</span>
         <input type="range" id="inlet-temp-slider" min="10.0" max="40.0" step="0.5" value="23.5">
         <span class="slider-val" id="inlet-temp-val" style="min-width:48px;">23.5 °C</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-label" style="min-width:62px;">加圧圧力</span>
+        <input type="range" id="inlet-press-slider" min="0" max="200" step="5" value="60">
+        <span class="slider-val" id="inlet-press-val" style="min-width:48px;">60 Pa</span>
       </div>
     </div>
 

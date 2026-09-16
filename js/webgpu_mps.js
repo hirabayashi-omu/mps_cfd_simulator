@@ -1353,6 +1353,7 @@ class WebGPUFVM {
     this.bgRoom=this.bgNozzle=null; this.stepCount=0; this.stateIndex=0; this.paused=true;
     this.displayMode=1; this.visualMode=1; this.sliceMode=1; this.slicePosition=1; this.viewSignature='';
     this.nozzleFocus=true; // ノズル部拡大トグル(断面・コンター表示時のみ有効)
+    this.inletPressure = 60.0; // φ110流入口の加圧圧力 [Pa] (冷風扇の送風静圧)
     this.substepsPerFrame=8; this.steadyMode=false; this.steadyComplete=false;
     this.stats={tMin:this.T_IN,tMax:this.T_REF,vMax:0,step:0,time:0};
     this.camera={theta:Math.PI/2,phi:Math.PI/2-0.04,radius:0.7,target:[0,(this.DOM+this.DOM_Z)/2-this.DOM/2,0]};
@@ -1577,7 +1578,7 @@ class WebGPUFVM {
           }
           const index = raw.length / 16;
           if (zp < step && type === 0) this.nozzleBottomIndices.push(index);
-          raw.push(x, y, z, type, 0, 0, type === 1 ? 0 : -localV, 0, type === 1 ? this.T_REF : this.T_IN, 0, type === 1 ? 0 : localV, 0, 0, 0, 0, 0);
+          raw.push(x, y, z, type, 0, 0, type === 1 ? 0 : -localV, type === 2 ? (this.inletPressure ?? 60.0) : 0, type === 1 ? this.T_REF : this.T_IN, 0, type === 1 ? 0 : localV, 0, 0, 0, 0, 0);
         }
       }
     }
@@ -1697,7 +1698,7 @@ class WebGPUFVM {
     this.bufNozzleConnection=this._storage('Room-to-nozzle connection',links.byteLength);
     this.device.queue.writeBuffer(this.bufNozzleConnection,0,links);
   }
-  _updateParamsBuffer(){const n=NOZZLES[this.nozzleType],b=new ArrayBuffer(128),u=new Uint32Array(b),f=new Float32Array(b);u[0]=this.N;u[1]=this.NX;u[2]=this.stepCount;f[4]=this.H;f[9]=this.DT;f[10]=this.NU;f[11]=this.ALPHA;f[12]=this.G;f[13]=this.BETA;f[14]=this.T_REF;f[15]=this.T_IN;f[16]=this.RHO0;f[19]=this.DOM;f[20]=n.outlet.velocity;u[21]=this.nozzleType;f[22]=AC.inletRadius;f[23]=1;f[24]=1;u[25]=n.outlet.hasCore?1:0;f[26]=n.outlet.coreR;f[27]=this.T_IN;f[28]=this.T_REF;f[29]=Math.max(n.outlet.velocity,AC.inletVelocity)*1.5;u[30]=this.displayMode;f[31]=this.DOM+.18;this.device.queue.writeBuffer(this.bufParams,0,b);}
+  _updateParamsBuffer(){const n=NOZZLES[this.nozzleType],b=new ArrayBuffer(128),u=new Uint32Array(b),f=new Float32Array(b);u[0]=this.N;u[1]=this.NX;u[2]=this.stepCount;f[3]=this.inletPressure??60.0;f[4]=this.H;f[9]=this.DT;f[10]=this.NU;f[11]=this.ALPHA;f[12]=this.G;f[13]=this.BETA;f[14]=this.T_REF;f[15]=this.T_IN;f[16]=this.RHO0;f[19]=this.DOM;f[20]=n.outlet.velocity;u[21]=this.nozzleType;f[22]=AC.inletRadius;f[23]=1;f[24]=1;u[25]=n.outlet.hasCore?1:0;f[26]=n.outlet.coreR;f[27]=this.T_IN;f[28]=this.T_REF;f[29]=Math.max(n.outlet.velocity,AC.inletVelocity)*1.5;u[30]=this.displayMode;f[31]=this.DOM+.18;this.device.queue.writeBuffer(this.bufParams,0,b);}
   _updateCameraBuffer(){
     const {theta,phi,radius,target}=this.camera;
     const eye=[target[0]+radius*Math.sin(phi)*Math.sin(theta),target[1]+radius*Math.cos(phi),target[2]+radius*Math.sin(phi)*Math.cos(theta)];
@@ -1829,12 +1830,15 @@ class WebGPUFVM {
     this.nozzleFocus=!!on;
     this.updateView();
   }
-  setInletCondition(velocity, temp){
+  setInletCondition(velocity, temp, pressure){
     if(velocity!==undefined && !isNaN(velocity)) AC.inletVelocity = velocity;
     if(temp!==undefined && !isNaN(temp)){
       AC.inletTemp = temp;
       this.T_IN = temp;
       this.stats.tMin = temp;
+    }
+    if(pressure!==undefined && !isNaN(pressure)){
+      this.inletPressure = pressure;
     }
     updateNozzleVelocities();
     this._updateParamsBuffer();
@@ -1851,6 +1855,7 @@ class WebGPUFVM {
           this.nozzleStateData[b+6]=-localV;
           this.nozzleStateData[b+8]=this.T_IN;
           this.nozzleStateData[b+10]=localV;
+          if(type===2) this.nozzleStateData[b+7]=this.inletPressure;
         }
       }
       this.device.queue.writeBuffer(this.bufNozzleState,0,this.nozzleStateData);

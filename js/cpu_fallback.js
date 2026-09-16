@@ -135,6 +135,7 @@ class CPUFallbackMPS {
     this.sliceMode   = 1; // 1=YZ面, 2=XZ面
     this.slicePosition = 1.0;
     this.nozzleFocus = true; // ノズル部拡大トグル(断面・コンター表示時のみ有効)
+    this.inletPressure = 60.0; // φ110流入口の加圧圧力 [Pa]
     this.viewSignature = '';
     this.paused      = true;
     this.stepCount   = 0;
@@ -309,7 +310,9 @@ class CPUFallbackMPS {
       }
 
       this.vx[c] = 0; this.vy[c] = 0; this.vz[c] = vz0;
-      this.temp[c] = t0; this.press[c] = 0; this.ptype[c] = type;
+      this.temp[c] = t0;
+      this.press[c] = (type === this.INLET ? (this.inletPressure ?? 60.0) : 0);
+      this.ptype[c] = type;
       this.inletFrac[c] = fracHere;
     }}}
     this.N = N;
@@ -674,9 +677,14 @@ class CPUFallbackMPS {
             value = Math.abs(this.press[c]);
           }
           let t;
-          if (this.displayMode === 0)      t = (value - this.T_IN) / (this.T_REF - this.T_IN);
-          else if (this.displayMode === 1) t = value / 15;
-          else                             t = value / 0.5;
+          if (this.displayMode === 0) {
+            t = (value - this.T_IN) / (this.T_REF - this.T_IN);
+          } else if (this.displayMode === 1) {
+            t = value / 15;
+          } else {
+            const pScale = Math.max(40.0, (this.inletPressure ?? 60.0) * 1.2);
+            t = value / pScale;
+          }
           [r, g, bl] = jetColorJS(Math.max(0, Math.min(1, t)));
         }
         for (let v = 0; v < 4; v++) {
@@ -842,8 +850,12 @@ class CPUFallbackMPS {
 
     // ── 3. 圧力ポアソン方程式 ∇²p = div  (非均一格子 ヤコビ法) ──────────
     // 非均一格子の ∇²p: 各方向の寄与を 2/(h_neighbor * (h_E+h_W)) の係数で重み付け。
-    // Dirichlet BC: WALL/INLET → p=0
-    for (let c = 0; c < this.N; c++) if (this.ptype[c] !== this.FLUID) this.press[c] = 0;
+    // Dirichlet BC: WALL → p=0, INLET → p=inletPressure (冷風扇加圧)
+    const pInlet = this.inletPressure ?? 60.0;
+    for (let c = 0; c < this.N; c++) {
+      if (this.ptype[c] === this.INLET) this.press[c] = pInlet;
+      else if (this.ptype[c] === this.WALL) this.press[c] = 0;
+    }
 
     const pNew = this._pBuf;
     pNew.fill(0);
@@ -852,6 +864,7 @@ class CPUFallbackMPS {
       for (let j = 1; j < NX - 1; j++) {
       for (let k = 1; k < NZ - 1; k++) {
         const c = this._idx(i, j, k);
+        if (this.ptype[c] === this.INLET) { pNew[c] = pInlet; continue; }
         if (this.ptype[c] !== this.FLUID) { pNew[c] = 0; continue; }
 
         // 局所格子幅
@@ -1038,7 +1051,8 @@ class CPUFallbackMPS {
         if (this.displayMode === 0) {
           t = (this.temp[i] - Tmin) / (Tmax - Tmin);
         } else {
-          t = Math.min(Math.abs(this.press[i]) / 0.5, 1);
+          const pScale = Math.max(40.0, (this.inletPressure ?? 60.0) * 1.2);
+          t = Math.min(Math.abs(this.press[i]) / pScale, 1);
         }
         t = Math.max(0, Math.min(1, t));
         const [r, g, b] = (!inView || isWall) ? [0.34, 0.38, 0.48] : jetColorJS(t);
@@ -1274,29 +1288,34 @@ class CPUFallbackMPS {
     this._updateSectionSurface();
   }
 
-  setInletCondition(velocity, temp) {
+  setInletCondition(velocity, temp, pressure) {
     if (velocity !== undefined && !isNaN(velocity)) AC.inletVelocity = velocity;
     if (temp !== undefined && !isNaN(temp)) {
       AC.inletTemp = temp;
       this.T_IN = temp;
       this.stats.tMin = temp;
     }
+    if (pressure !== undefined && !isNaN(pressure)) {
+      this.inletPressure = pressure;
+    }
     updateNozzleVelocities();
     this._applyInletCondition();
   }
 
   // ────────────────────────────────────────────────────────────────
-  //  INLETセルの流入条件を再適用 (連続の式による局所速度)
+  //  INLETセルの流入条件を再適用 (連続の式による局所速度 + 加圧圧力)
   // ────────────────────────────────────────────────────────────────
   _applyInletCondition() {
     const nozzle = NOZZLES[this.nozzleType];
     const core   = nozzle.innerCylinder || null;
+    const pInlet = this.inletPressure ?? 60.0;
     for (let c = 0; c < this.N; c++) {
       if (this.ptype[c] !== this.INLET) continue;
       const zNoz = Math.min(this.NOZZLE_H, Math.max(0, this.pz[c] - this.DOM));
       const localV = this._nozzleLocalVelocity(this.nozzleType, nozzle, core, zNoz);
       this.vz[c] = -localV * (this.inletFrac ? this.inletFrac[c] : 1);
       this.temp[c] = this.T_IN;
+      this.press[c] = pInlet;
     }
   }
 

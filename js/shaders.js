@@ -906,7 +906,7 @@ fn fs_main(in: VertOut) -> @location(0) vec4f {
 `;
 
 const SHADER_VECTOR_VERT = /* wgsl */`
-struct Params { N:u32, NX:u32, step:u32, _pad:u32, H:f32, _a:f32, _b:f32, _c:f32, _l:f32, DT:f32, NU:f32, ALPHA:f32, G:f32, BETA:f32, T_REF:f32, T_IN:f32, RHO0:f32, _k:f32, _cell:f32, DOM:f32, V_IN:f32, NOZZLE:u32, IN_R:f32, IN_CX:f32, IN_CY:f32, HAS_CORE:u32, CORE_R:f32, T_MIN:f32, T_MAX:f32, V_MAX:f32, DISP_MODE:u32, DOM_Z:f32, };
+struct Params { N:u32, NX:u32, step:u32, P_INLET:f32, H:f32, _a:f32, _b:f32, _c:f32, _l:f32, DT:f32, NU:f32, ALPHA:f32, G:f32, BETA:f32, T_REF:f32, T_IN:f32, RHO0:f32, _k:f32, _cell:f32, DOM:f32, V_IN:f32, NOZZLE:u32, IN_R:f32, IN_CX:f32, IN_CY:f32, HAS_CORE:u32, CORE_R:f32, T_MIN:f32, T_MAX:f32, V_MAX:f32, DISP_MODE:u32, DOM_Z:f32, };
 struct Cell { pos:vec4f, vel:vec4f, aux:vec4f, aux2:vec4f, };
 struct Camera { mvp:mat4x4f, viewPos:vec4f, slice_mode:f32, slice_pos:f32, slice_thick:f32, view_mode:f32, };
 @group(0) @binding(0) var<uniform> p:Params;
@@ -1172,7 +1172,7 @@ const SHADER_NOZZLE_FRAG = /* wgsl */`
 // ─────────────────────────────────────────────────────────────────
 const FVM_COMMON = /* wgsl */`
 struct Params {
-  N:u32, NX:u32, step:u32, _pad:u32,
+  N:u32, NX:u32, step:u32, P_INLET:f32,
   H:f32, _r1:f32, _r2:f32, _r3:f32,
   _l:f32, DT:f32, NU:f32, ALPHA:f32,
   G:f32, BETA:f32, T_REF:f32, T_IN:f32,
@@ -1354,7 +1354,12 @@ fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
     pout[c]=pin[uIdx];
     return;
   }
-  // 天井開口部以外の壁セル、および室内境界壁面はDirichlet条件(p=0)
+  // ★ノズル流入面 (φ110 INLET セル, a.pos.w > 1.5f): 冷風扇からの送風による定常な加圧を維持
+  if(a.pos.w > 1.5f){
+    pout[c] = p.P_INLET;
+    return;
+  }
+  // 天井開口部・INLET以外の壁セル、および室内境界壁面はDirichlet条件(p=0)
   if(a.pos.w>0.5f||(c<roomN&&(q.x==0||q.x==i32(p.NX)-1||q.y==0||q.y==i32(p.NX)-1||q.z==0||q.z==i32(p.NX)-1))){pout[c]=0.0f;return;}
   let h1=cellDist[c*2u]; let h2=cellDist[c*2u+1u];
   let hxE=h1.x; let hxW=h1.y; let hyN=h1.z; let hyS=h1.w;
@@ -1404,7 +1409,11 @@ fn neighborIndex(c:u32, slot:u32)->u32 { return u32(neighbors[c*6u+slot]); }
       out[c]=inlet;
     } else {
       var fixedCell=a;
-      if(a.pos.w>1.5f){ fixedCell.aux.x=p.T_IN; }
+      if(a.pos.w>1.5f){
+        fixedCell.vel = vec4f(a.vel.xyz, p.P_INLET); // INLET加圧圧力を保持
+        fixedCell.aux.x=p.T_IN;
+        fixedCell.aux.z=length(a.vel.xyz);
+      }
       out[c]=fixedCell;
     }
     return;
@@ -1543,7 +1552,7 @@ fn findAxisIndex(val:f32, offset:u32, n:u32) -> u32 {
           var cv=c.aux.x;
           if(c.pos.w>1.5f&&p.DISP_MODE==0u){cv=p.T_IN;}
           else if(c.pos.w>1.5f&&p.DISP_MODE==1u){cv=p.V_IN;}
-          else if(c.pos.w>1.5f&&p.DISP_MODE==2u){cv=0.0f;}
+          else if(c.pos.w>1.5f&&p.DISP_MODE==2u){cv=p.P_INLET;}
           else if(p.DISP_MODE==1u){cv=c.aux.z;}
           else if(p.DISP_MODE==2u){cv=abs(c.vel.w);}
           sum+=cv*weight;weightSum+=weight;
@@ -1557,7 +1566,7 @@ fn findAxisIndex(val:f32, offset:u32, n:u32) -> u32 {
     let blend=clamp((z-(p.DOM-0.1f))/0.1f,0.0f,1.0f);
     if(radial<=p.IN_R){v=mix(v,p.V_IN,blend);}
   }
-  if(p.DISP_MODE==0u){v=(v-p.T_MIN)/(p.T_MAX-p.T_MIN);}else if(p.DISP_MODE==1u){v/=p.V_MAX;}else{v/=500.0f;}
+  if(p.DISP_MODE==0u){v=(v-p.T_MIN)/(p.T_MAX-p.T_MIN);}else if(p.DISP_MODE==1u){v/=p.V_MAX;}else{let pScale=max(max(0.5f*p.RHO0*p.V_MAX*p.V_MAX,40.0f),p.P_INLET*1.2f);v/=pScale;}
   values[id]=clamp(v,0.0f,1.0f);
 }
 `;
@@ -1638,14 +1647,16 @@ struct SliceCellOut {
   var v=c.aux.x;
   if(p.DISP_MODE==1u){ v=c.aux.z; } else if(p.DISP_MODE==2u){ v=abs(c.vel.w); }
   if(ptype>1.5f){
-    // 流入セルの境界値: 温度はT_IN、速度はV_IN、圧力はセル自身の圧力(abs(c.vel.w))をそのまま表示
-    if(p.DISP_MODE==0u){ v=p.T_IN; } else if(p.DISP_MODE==1u){ v=p.V_IN; }
+    // 流入セルの境界値: 温度はT_IN、速度はV_IN、圧力はP_INLET
+    if(p.DISP_MODE==0u){ v=p.T_IN; }
+    else if(p.DISP_MODE==1u){ v=p.V_IN; }
+    else if(p.DISP_MODE==2u){ v=p.P_INLET; }
   }
   var t:f32;
   if(p.DISP_MODE==0u){ t=(v-p.T_MIN)/max(p.T_MAX-p.T_MIN,1e-5f); }
   else if(p.DISP_MODE==1u){ t=v/max(p.V_MAX,1e-5f); }
   else {
-    let pScale = max(0.5f * p.RHO0 * p.V_MAX * p.V_MAX, 40.0f);
+    let pScale = max(max(0.5f * p.RHO0 * p.V_MAX * p.V_MAX, 40.0f), p.P_INLET * 1.2f);
     t = v / pScale;
   }
 
@@ -1728,14 +1739,16 @@ struct Out { @builtin(position) pos:vec4f, @location(0) color:vec3f, @location(1
   var v=c.aux.x;
   if(p.DISP_MODE==1u){ v=c.aux.z; } else if(p.DISP_MODE==2u){ v=abs(c.vel.w); }
   if(ptype>1.5f){
-    // 流入セルの境界値: 温度はT_IN、速度はV_IN、圧力はセル自身の圧力(abs(c.vel.w))をそのまま表示
-    if(p.DISP_MODE==0u){ v=p.T_IN; } else if(p.DISP_MODE==1u){ v=p.V_IN; }
+    // 流入セルの境界値: 温度はT_IN、速度はV_IN、圧力はP_INLET
+    if(p.DISP_MODE==0u){ v=p.T_IN; }
+    else if(p.DISP_MODE==1u){ v=p.V_IN; }
+    else if(p.DISP_MODE==2u){ v=p.P_INLET; }
   }
   var t:f32;
   if(p.DISP_MODE==0u){ t=(v-p.T_MIN)/max(p.T_MAX-p.T_MIN,1e-5f); }
   else if(p.DISP_MODE==1u){ t=v/max(p.V_MAX,1e-5f); }
   else {
-    let pScale = max(0.5f * p.RHO0 * p.V_MAX * p.V_MAX, 40.0f);
+    let pScale = max(max(0.5f * p.RHO0 * p.V_MAX * p.V_MAX, 40.0f), p.P_INLET * 1.2f);
     t = v / pScale;
   }
 
